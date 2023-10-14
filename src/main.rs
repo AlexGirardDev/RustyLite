@@ -17,17 +17,19 @@ fn main() -> Result<()> {
         ".dbinfo" => {
             let mut file = File::open(&args[1])?;
             let mut header = [0; 100];
-            file.read_exact(&mut header)?;
+            file.read_exact(&mut header,)?;
 
-            // The page size is stored at the 16th byte offset, using 2 bytes in big-endian order
-            #[allow(unused_variables)]
             let page_size = u16::from_be_bytes([header[16], header[17]]);
-
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
             println!("Logs from your program will appear here!");
 
-            // Uncomment this block to pass the first stage
+            let mut b_tree_header = [0; 8];
+            file.read_exact(&mut b_tree_header)?;
+
+            let num_of_rows = u16::from_be_bytes([b_tree_header[3], b_tree_header[4]]);
+            println!("Logs from your program will appear here!");
+
             println!("database page size: {}", page_size);
+            println!("number of tables: {}", num_of_rows);
         }
         _ => bail!("Missing or invalid command passed: {}", command),
     }
