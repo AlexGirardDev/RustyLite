@@ -4,9 +4,9 @@ use std::{
     io::{Read, Seek, SeekFrom},
 };
 
-use crate::{
+use crate::sqlite::{
     page::{Page, PageHeader, PageType},
-    sqlite_schema::{SqliteSchema, SchemaType},
+    sqlite_schema::{SchemaType, SqliteSchema},
 };
 
 pub struct Sqlite {
@@ -58,7 +58,7 @@ impl Sqlite {
             let Cell::Int8(root_page)=  self.read_cell(&record_headers[3])? else {todo!()};
             let Cell::String(sql)=  self.read_cell(&record_headers[4])? else {todo!()};
 
-            schema.push(SqliteSchema{
+            schema.push(SqliteSchema {
                 schema_type,
                 name,
                 table_name,
@@ -67,7 +67,7 @@ impl Sqlite {
             });
         }
 
-      Ok(schema) 
+        Ok(schema)
     }
 
     fn read_varint(&mut self) -> Result<Varint> {
@@ -83,9 +83,8 @@ impl Sqlite {
             value <<= 7;
             value |= u64::from(0b0111_1111 & byte);
         }
-        Ok(Varint{value,size})
+        Ok(Varint { value, size })
     }
-
 
     // fn parse_varint()
     // fn varint_bytes_needed(value: u64)-> u8 {
@@ -147,7 +146,7 @@ impl Sqlite {
     }
 
     fn read_record_header(&mut self) -> Result<Vec<CellType>> {
-        let Varint {mut value, size} = self.read_varint()?;
+        let Varint { mut value, size } = self.read_varint()?;
 
         value -= size as u64;
         let mut result: Vec<CellType> = Vec::new();
@@ -179,57 +178,56 @@ impl Sqlite {
         return Ok(result);
     }
 
-fn read_cell(&mut self, cell_type: &CellType) -> Result<Cell> {
-    return Ok(match cell_type {
-        CellType::Null => Cell::Null,
-        CellType::Int8 => {
-            let mut buff = [0; 1];
-            self.file.read_exact(&mut buff)?;
-            Cell::Int8(buff[0] as i8)
-        }
-        CellType::Int16 => {
-            let mut buff = [0; 2];
-            self.file.read_exact(&mut buff).unwrap();
-            Cell::Int16(i16::from_be_bytes(buff))
-        }
-        CellType::Int24 => {
-            let mut buff = [0; 4];
-            self.file.read(&mut buff[0..3]).unwrap();
-            Cell::Int32(i32::from_be_bytes(buff))
-        }
-        CellType::Int32 => {
-            let mut buff = [0; 4];
-            self.file.read(&mut buff).unwrap();
-            Cell::Int32(i32::from_be_bytes(buff))
-        }
-        CellType::Int48 => {
-            let mut buff = [0; 8];
-            self.file.read(&mut buff[0..6]).unwrap();
-            Cell::Int64(i64::from_be_bytes(buff))
-        }
-        CellType::Int64 => {
-            let mut buff = [0; 8];
-            self.file.read(&mut buff).unwrap();
-            Cell::Int64(i64::from_be_bytes(buff))
-        }
-        CellType::Float64 => {
-            let mut buff = [0; 8];
-            self.file.read(&mut buff).unwrap();
-            Cell::Float(f64::from_be_bytes(buff))
-        }
-        CellType::Blob(len) => {
-            let mut data = vec![0u8; *len as usize];
-            self.file.read(&mut data).unwrap();
-            Cell::Blob(data)
-        }
-        CellType::String(len) => {
-            let mut data = vec![0u8; *len as usize];
-            self.file.read(&mut data).unwrap();
-            Cell::String(String::from_utf8(data).unwrap())
-        }
-    });
-}
-
+    fn read_cell(&mut self, cell_type: &CellType) -> Result<Cell> {
+        return Ok(match cell_type {
+            CellType::Null => Cell::Null,
+            CellType::Int8 => {
+                let mut buff = [0; 1];
+                self.file.read_exact(&mut buff)?;
+                Cell::Int8(buff[0] as i8)
+            }
+            CellType::Int16 => {
+                let mut buff = [0; 2];
+                self.file.read_exact(&mut buff).unwrap();
+                Cell::Int16(i16::from_be_bytes(buff))
+            }
+            CellType::Int24 => {
+                let mut buff = [0; 4];
+                self.file.read(&mut buff[0..3]).unwrap();
+                Cell::Int32(i32::from_be_bytes(buff))
+            }
+            CellType::Int32 => {
+                let mut buff = [0; 4];
+                self.file.read(&mut buff).unwrap();
+                Cell::Int32(i32::from_be_bytes(buff))
+            }
+            CellType::Int48 => {
+                let mut buff = [0; 8];
+                self.file.read(&mut buff[0..6]).unwrap();
+                Cell::Int64(i64::from_be_bytes(buff))
+            }
+            CellType::Int64 => {
+                let mut buff = [0; 8];
+                self.file.read(&mut buff).unwrap();
+                Cell::Int64(i64::from_be_bytes(buff))
+            }
+            CellType::Float64 => {
+                let mut buff = [0; 8];
+                self.file.read(&mut buff).unwrap();
+                Cell::Float(f64::from_be_bytes(buff))
+            }
+            CellType::Blob(len) => {
+                let mut data = vec![0u8; *len as usize];
+                self.file.read(&mut data).unwrap();
+                Cell::Blob(data)
+            }
+            CellType::String(len) => {
+                let mut data = vec![0u8; *len as usize];
+                self.file.read(&mut data).unwrap();
+                Cell::String(String::from_utf8(data).unwrap())
+            }
+        });
+    }
 }
 
 #[derive(Debug)]
@@ -270,7 +268,7 @@ enum Cell {
     Blob(Vec<u8>),
     String(String),
 }
-struct Varint{
+struct Varint {
     value: u64,
     size: u8,
 }

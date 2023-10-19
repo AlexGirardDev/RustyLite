@@ -3,6 +3,8 @@ use sqlite::{page::{Page, PageHeader, PageType}, sqlite::Sqlite, sqlite_schema::
 
 use std::{i8, usize};
 
+pub mod sqlite;
+
 fn main() -> Result<()> {
     // Parse arguments
     // 
