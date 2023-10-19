@@ -40,8 +40,8 @@ impl Sqlite {
 
         for id in page.cell_array {
             self.file.seek(SeekFrom::Start(id as u64))?;
-            let payload_length = self.read_varint()?.value;
-            let row_id = self.read_varint()?.value;
+            let _payload_length = self.read_varint()?.value;
+            let _row_id = self.read_varint()?.value;
             let record_headers = self.read_record_header()?;
             let schema_type = match self.read_cell(&record_headers[0])? {
                 Cell::String(s) => match s.as_ref() {
@@ -97,7 +97,7 @@ impl Sqlite {
     fn read_page(&mut self, page_number: u32) -> Result<Page> {
         let offset = match page_number {
             0 => 100,
-            num => page_number * self.header.page_size as u32,
+            num => num * self.header.page_size as u32,
         };
         let mut buffer = [0; 1];
         self.file.seek(SeekFrom::Start(offset.into()))?;
