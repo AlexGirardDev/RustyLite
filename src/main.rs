@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
-use sqlite::{page::{Page, PageHeader, PageType}, sqlite::Sqlite, sqlite_schema::SchemaType};
+use prettytable::{Table, row};
+use sqlite::{ sqlite::Sqlite, sqlite_schema::SchemaType};
 
-use std::{i8, usize};
 
 pub mod sqlite;
 
@@ -35,6 +35,23 @@ fn main() -> Result<()> {
                 .collect();
             print!("{}", names.join(" "));
         }
+        ".schema" => {
+            let schema = dbg!(db.get_schema()?);
+            let mut table = Table::new();
+            table.add_row(row!["Id","Type","Name","R_Page"]);
+            for sc in  schema.iter(){
+                table.add_row(row![sc.row_id,sc.schema_type,sc.name,sc.root_page]);
+            }
+            table.printstd();
+        },
+        query =>{
+            let table_name = query.split(" ").last().unwrap();
+            let wow = db.count_rows(table_name)?;
+            println!("{wow}");
+        }
+
+
+
 
         _ => bail!("Missing or invalid command passed: {}", command),
     }
