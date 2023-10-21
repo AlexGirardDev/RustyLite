@@ -1,15 +1,13 @@
 use anyhow::{bail, Result};
+use sqlparser::{dialect::GenericDialect, parser::Parser};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
 };
 
-use crate::sqlite::{
-    page::{Page, PageHeader, PageType},
-    sqlite_schema::{SchemaType, SqliteSchema},
-};
+use crate::{page::{PageType, Page, PageHeader}, sqlite_cell::{CellType, CellValue}, schema::{SqliteSchema, SchemaType}};
 
-use super::page;
+
 
 pub struct Sqlite {
     pub header: SqliteHeader,
@@ -41,7 +39,7 @@ impl Sqlite {
             let row_id = self.read_varint()?.value;
             let record_headers = self.read_record_header()?;
             let schema_type = match self.read_cell(&record_headers[0])? {
-                Cell::String(s) => match s.as_ref() {
+                CellValue::String(s) => match s.as_ref() {
                     "table" => SchemaType::Table,
                     "index" => SchemaType::Index,
                     "view" => SchemaType::View,
@@ -50,10 +48,10 @@ impl Sqlite {
                 },
                 _ => todo!(),
             };
-            let Cell::String(name)=  self.read_cell(&record_headers[1])? else {todo!()};
-            let Cell::String(table_name)=  self.read_cell(&record_headers[2])? else {todo!()};
-            let Cell::Int(root_page)=  self.read_cell(&record_headers[3])? else {todo!()};
-            let Cell::String(sql)=  self.read_cell(&record_headers[4])? else {todo!()};
+            let CellValue::String(name)=  self.read_cell(&record_headers[1])? else {todo!()};
+            let CellValue::String(table_name)=  self.read_cell(&record_headers[2])? else {todo!()};
+            let CellValue::Int(root_page)=  self.read_cell(&record_headers[3])? else {todo!()};
+            let CellValue::String(sql)=  self.read_cell(&record_headers[4])? else {todo!()};
 
             schema.push(SqliteSchema {
                 row_id,
@@ -75,7 +73,53 @@ impl Sqlite {
         };
         let page = self.read_page(schema.root_page)?;
 
-        return Ok(page.cell_array.len().try_into()?);
+        return Ok(page.cell_array.len() as u64);
+    }
+
+    pub fn handle_sql(&mut self, sql: &str) -> Result<()> {
+        let dialect = GenericDialect {}; // or AnsiDialect, or your own dialect ...
+
+        let ast = Parser::parse_sql(&dialect, sql)?;
+        for exp in ast {
+            match exp {
+                sqlparser::ast::Statement::Query(query) => {
+                    println!("{:?}", query.body);
+                    match *query.body {
+                        sqlparser::ast::SetExpr::Select(sel) => {
+                            for x in sel.projection {
+                                match x {
+                                    sqlparser::ast::SelectItem::UnnamedExpr(exp) => {
+                                        match exp {
+                                            sqlparser::ast::Expr::Function(fun) => {
+                                                if fun.name.0.len() == 1 {
+                                                    match fun.name.0[0].value.as_ref(){
+                                                        "count"=>{
+                                                             
+                                                        },
+                                                            e=> bail!("unsported function {}",e)
+                                                    }
+                                                } else {
+                                                    bail!(
+                                                        "only single name functions are supporteed"
+                                                    );
+                                                }
+                                            }
+                                            e => bail!("{} is not currenty supported", e),
+                                        };
+                                    }
+
+                                    e => bail!("{} is not currenty supported", e),
+                                }
+                            }
+                        }
+                        e => bail!("{} is not currenty supported", e),
+                    }
+                }
+
+                e => bail!("{} is not currenty supported", e),
+            }
+        }
+        Ok(())
     }
 
     fn read_varint(&mut self) -> Result<Varint> {
@@ -104,7 +148,7 @@ impl Sqlite {
             num => (num - 1) * self.header.page_size as i64,
         };
         let mut buffer = [0; 1];
-        self.file.seek(SeekFrom::Start(offset.try_into()?))?;
+        self.file.seek(SeekFrom::Start(offset as u64))?;
         self.file.read_exact(&mut buffer).unwrap();
         let page_type = match buffer[0] {
             0x0d => PageType::LeafTable,
@@ -183,33 +227,33 @@ impl Sqlite {
         return Ok(result);
     }
 
-    fn read_cell(&mut self, cell_type: &CellType) -> Result<Cell> {
+    fn read_cell(&mut self, cell_type: &CellType) -> Result<CellValue> {
         return Ok(match cell_type {
-            CellType::Null => Cell::Null,
+            CellType::Null => CellValue::Null,
             CellType::Varint(size) => {
                 let mut buff = [0; 8];
                 let size = *size as usize;
                 if size <= 0 {
-                    Cell::Int(0)
+                    CellValue::Int(0)
                 } else {
                     self.file.read_exact(&mut buff[8 - size..8])?;
-                    Cell::Int(i64::from_be_bytes(buff))
+                    CellValue::Int(i64::from_be_bytes(buff))
                 }
             }
             CellType::Float64 => {
                 let mut buff = [0; 8];
                 self.file.read(&mut buff).unwrap();
-                Cell::Float(f64::from_be_bytes(buff))
+                CellValue::Float(f64::from_be_bytes(buff))
             }
             CellType::Blob(len) => {
                 let mut data = vec![0u8; *len as usize];
                 self.file.read(&mut data).unwrap();
-                Cell::Blob(data)
+                CellValue::Blob(data)
             }
             CellType::String(len) => {
                 let mut data = vec![0u8; *len as usize];
                 self.file.read(&mut data).unwrap();
-                Cell::String(String::from_utf8(data).unwrap())
+                CellValue::String(String::from_utf8(data).unwrap())
             }
         });
     }
@@ -229,22 +273,7 @@ pub enum TextEncoding {
     Utf16be,
 }
 
-#[derive(Debug)]
-enum CellType {
-    Null,
-    Varint(u8),
-    Float64,
-    Blob(isize),
-    String(isize),
-}
-#[derive(Debug)]
-enum Cell {
-    Null,
-    Int(i64),
-    Float(f64),
-    Blob(Vec<u8>),
-    String(String),
-}
+
 struct Varint {
     value: u64,
     size: u8,

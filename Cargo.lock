@@ -161,6 +161,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da2479e8c062e40bf0066ffa0bc823de0a9368974af99c9f6df941d2c231e03f"
 
 [[package]]
+name = "log"
+version = "0.4.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+
+[[package]]
 name = "memchr"
 version = "2.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -336,6 +342,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlite"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "itertools",
+ "prettytable-rs",
+ "sqlparser",
+ "thiserror",
+]
+
+[[package]]
 name = "sqlite-starter-rust"
 version = "0.1.0"
 dependencies = [
@@ -345,7 +362,18 @@ dependencies = [
  "peg",
  "prettytable-rs",
  "regex",
+ "sqlite",
+ "sqlparser",
  "thiserror",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.38.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0272b7bb0a225320170c99901b4b5fb3a4384e255a7f2cc228f61e2ba3893e75"
+dependencies = [
+ "log",
 ]
 
 [[package]]

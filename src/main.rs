@@ -1,13 +1,11 @@
 use anyhow::{bail, Result};
-use prettytable::{Table, row};
-use sqlite::{ sqlite::Sqlite, sqlite_schema::SchemaType};
+use prettytable::{row, Table};
+use sqlite::{sqlite::Sqlite, schema::SchemaType};
 
-
-pub mod sqlite;
 
 fn main() -> Result<()> {
     // Parse arguments
-    // 
+    //
     let args = std::env::args().collect::<Vec<_>>();
     match args.len() {
         0 | 1 => bail!("Missing <database path> and <command>"),
@@ -23,7 +21,13 @@ fn main() -> Result<()> {
             println!("Logs from your program will appear here!");
             let schema = db.get_schema()?;
             println!("database page size: {}", db.header.page_size);
-            println!("number of tables: {}", schema.iter().filter(|x|matches!(x.schema_type,SchemaType::Table)).count());
+            println!(
+                "number of tables: {}",
+                schema
+                    .iter()
+                    .filter(|x| matches!(x.schema_type, SchemaType::Table))
+                    .count()
+            );
         }
 
         ".tables" => {
@@ -38,20 +42,15 @@ fn main() -> Result<()> {
         ".schema" => {
             let schema = dbg!(db.get_schema()?);
             let mut table = Table::new();
-            table.add_row(row!["Id","Type","Name","R_Page"]);
-            for sc in  schema.iter(){
-                table.add_row(row![sc.row_id,sc.schema_type,sc.name,sc.root_page]);
+            table.add_row(row!["Id", "Type", "Name", "R_Page"]);
+            for sc in schema.iter() {
+                table.add_row(row![sc.row_id, sc.schema_type, sc.name, sc.root_page]);
             }
             table.printstd();
-        },
-        query =>{
-            let table_name = query.split(" ").last().unwrap();
-            let wow = db.count_rows(table_name)?;
-            println!("{wow}");
         }
-
-
-
+        query => {
+            db.handle_sql(query)?;
+        }
 
         _ => bail!("Missing or invalid command passed: {}", command),
     }
