@@ -1,4 +1,4 @@
-use sqlparser::ast::{ColumnDef, DataType};
+use sqlparser::ast::DataType;
 
 #[derive(Debug,Clone)]
 pub struct Column {

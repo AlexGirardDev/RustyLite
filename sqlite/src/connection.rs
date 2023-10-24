@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use sqlparser::{
-    ast::{self, Expr, FunctionArg, Ident, SelectItem, TableFactor},
+    ast::{self, Expr, FunctionArg, SelectItem, TableFactor},
     dialect::SQLiteDialect,
     parser::Parser,
 };
@@ -80,9 +80,9 @@ impl Connection {
         return Ok(page.cell_array.len() as i64);
     }
 
-    pub fn execute(&mut self, sql: &str) -> Result<()> {
-        todo!();
-    }
+    // pub fn execute(&mut self, sql: &str) -> Result<()> {
+    //     todo!();
+    // }
 
     pub fn query(&mut self, sql: &str) -> Result<Vec<Row>> {
         let ast = Parser::parse_sql(&DIALECT, sql)?;
@@ -113,12 +113,6 @@ impl Connection {
         Ok(rows)
     }
 
-    fn require_single_item<T>(values: &Vec<T>) -> Result<&T> {
-        if values.len() != 1 {
-            bail!("only single item selects are currently supported");
-        }
-        Ok(&values[0])
-    }
     fn get_table_schema(&mut self, table: &str) -> Result<SqliteSchema> {
         match self.get_schema()?.into_iter().find(|f| f.name == table) {
             Some(s) => Ok(s),

@@ -21,7 +21,7 @@ impl fmt::Display for CellValue {
             CellValue::Null => write!(f,"NULl"),
             CellValue::Int(v) => write!(f,"{v}"),
             CellValue::Float(v) => write!(f,"{v}"),
-            CellValue::Blob(v) => write!(f,""),
+            CellValue::Blob(_) => write!(f,""),
             CellValue::String(v) => write!(f,"{v}"),
         }
     }
