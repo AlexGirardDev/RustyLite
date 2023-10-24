@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(Debug)]
 pub struct SqliteSchema {
-    pub row_id: u64,
+    pub row_id: i64,
     pub schema_type: SchemaType,
     pub name: String,
     pub table_name: String,

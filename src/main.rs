@@ -1,11 +1,9 @@
 use anyhow::{bail, Result};
 use prettytable::{row, Table};
-use sqlite::{sqlite::Sqlite, schema::SchemaType};
+use sqlite::schema::SchemaType;
 
 
 fn main() -> Result<()> {
-    // Parse arguments
-    //
     let args = std::env::args().collect::<Vec<_>>();
     match args.len() {
         0 | 1 => bail!("Missing <database path> and <command>"),
@@ -15,12 +13,12 @@ fn main() -> Result<()> {
 
     // Parse command and act accordingly
     let command = &args[2];
-    let mut db = Sqlite::new(&args[1])?;
+    let mut conn = sqlite::open(&args[1])?;
     match command.as_str() {
         ".dbinfo" => {
             println!("Logs from your program will appear here!");
-            let schema = db.get_schema()?;
-            println!("database page size: {}", db.header.page_size);
+            let schema = conn.get_schema()?;
+            println!("database page size: {}", conn.header.page_size);
             println!(
                 "number of tables: {}",
                 schema
@@ -31,7 +29,7 @@ fn main() -> Result<()> {
         }
 
         ".tables" => {
-            let schema = db.get_schema()?;
+            let schema = conn.get_schema()?;
             let names: Vec<String> = schema
                 .iter()
                 .filter(|x| matches!(x.schema_type, SchemaType::Table))
@@ -40,7 +38,7 @@ fn main() -> Result<()> {
             print!("{}", names.join(" "));
         }
         ".schema" => {
-            let schema = dbg!(db.get_schema()?);
+            let schema = dbg!(conn.get_schema()?);
             let mut table = Table::new();
             table.add_row(row!["Id", "Type", "Name", "R_Page"]);
             for sc in schema.iter() {
@@ -49,10 +47,10 @@ fn main() -> Result<()> {
             table.printstd();
         }
         query => {
-            db.handle_sql(query)?;
+            for r in conn.query(query)?{
+                println!("{}",r.cells[0]);
+            }
         }
-
-        _ => bail!("Missing or invalid command passed: {}", command),
     }
 
     Ok(())
