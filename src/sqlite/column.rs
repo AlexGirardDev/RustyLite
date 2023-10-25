@@ -3,7 +3,7 @@ use sqlparser::ast::DataType;
 #[derive(Debug,Clone)]
 pub struct Column {
     pub type_affinity: TypeAffinity,
-    pub column_index: i64,
+    pub column_index: Option<i64>,
 }
 
 #[derive(Debug,Clone)]

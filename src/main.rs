@@ -49,7 +49,8 @@ fn main() -> Result<()> {
             table.printstd();
         }
         query => {
-            for r in conn.query(query)?{
+            let result = conn.query(query)?;
+            for r in result{
                 println!("{}",r.cells[0]);
             }
         }

@@ -8,9 +8,9 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{Read, Seek, SeekFrom},
+    rc::Rc,
     usize,
 };
-
 
 use crate::sqlite::{
     column::Column,
@@ -19,6 +19,8 @@ use crate::sqlite::{
     row::Row,
     schema::{SchemaType, SqliteSchema},
 };
+
+use super::column::TypeAffinity;
 
 pub struct Connection {
     pub header: DatabaseHeader,
@@ -71,16 +73,16 @@ impl Connection {
         Ok(schema)
     }
 
-    pub fn count_rows(&mut self, table_name: &str) -> Result<i64> {
-        let schemas = self.get_schema()?;
-        let Some(schema) = schemas.iter().find(|x| x.table_name == table_name) else{
-            return Ok(0);
-        };
-        let page = self.read_page(schema.root_page)?;
-
-        return Ok(page.cell_array.len() as i64);
-    }
-
+    // pub fn count_rows(&mut self, table_name: &str) -> Result<i64> {
+    //     let schemas = self.get_schema()?;
+    //     let Some(schema) = schemas.iter().find(|x| x.table_name == table_name) else{
+    //         return Ok(0);
+    //     };
+    //     let page = self.read_page(schema.root_page)?;
+    //
+    //     return Ok(page.cell_array.len() as i64);
+    // }
+    //
     // pub fn execute(&mut self, sql: &str) -> Result<()> {
     //     todo!();
     // }
@@ -92,7 +94,7 @@ impl Connection {
             match exp {
                 ast::Statement::Query(query) => match *query.body {
                     ast::SetExpr::Select(sel) => {
-                        let mut columns = Vec::<String>::new();
+                        let mut columns = Vec::<SelectCell>::new();
                         for sel_item in sel.projection {
                             columns.append(&mut self.proccess_sel_item(&sel_item)?)
                         }
@@ -138,7 +140,7 @@ impl Connection {
                                     f.name.value.to_owned(),
                                     Column {
                                         type_affinity: (&f.data_type).into(),
-                                        column_index: i as i64,
+                                        column_index: Some(i as i64),
                                     },
                                 )
                             })
@@ -151,31 +153,92 @@ impl Connection {
         }
     }
 
-    fn read_table(&mut self, table: &str, column_names: Vec<String>) -> Result<Vec<Row>> {
+    fn handle_aggregate_select(
+        &mut self,
+        table: &str,
+        select_columns: Vec<SelectCell>,
+    ) -> Result<Vec<Row>> {
+        let mut cells = Vec::<CellValue>::new();
+
+        for col in select_columns.iter() {
+            match col {
+                SelectCell::NamedColumn(name) => {
+                    bail!("cannot get column value for {} in an aggregate query", name)
+                }
+                SelectCell::TotalRowCount => {
+                    cells.push(CellValue::Int(self.count_rows(table)?));
+                }
+            };
+        }
+
+        let schema = &self.get_table_schema(table)?;
+        Ok(vec![Row {
+            cells,
+            columns: Rc::new(Connection::column_hashmap(
+                self.get_table_columns(schema)?,
+                select_columns,
+            )),
+        }])
+    }
+
+    fn column_hashmap(
+        mut column_schema: HashMap<String, Column>,
+        select_columns: Vec<SelectCell>,
+    ) -> HashMap<String, Column> {
+        select_columns
+            .into_iter()
+            .map(|f| match f {
+                SelectCell::NamedColumn(name) => {
+                    let column = column_schema.remove(&name).unwrap();
+                    (name, column)
+                }
+                SelectCell::TotalRowCount => (
+                    String::from("count(*)"),
+                    Column {
+                        type_affinity: TypeAffinity::Int,
+                        column_index: None,
+                    },
+                ),
+            })
+            .collect()
+    }
+
+    fn read_table(&mut self, table: &str, select_columns: Vec<SelectCell>) -> Result<Vec<Row>> {
         let schema = &self.get_table_schema(table)?;
 
-        let mut column_schema = self.get_table_columns(schema)?;
-        let columns: Vec<(String, Column)> = column_names
-            .into_iter()
-            .map(|f| {
-                let column = column_schema.remove(&f).unwrap();
-                (f, column)
-            })
-            .collect();
+        let column_schema = self.get_table_columns(schema)?;
+        let aggregate_query = select_columns.iter().any(|f| match f {
+            SelectCell::NamedColumn(_) => false,
+            SelectCell::TotalRowCount => true,
+        });
 
+        if aggregate_query {
+            return self.handle_aggregate_select(table, select_columns);
+        }
+
+        let columns = Rc::new(Connection::column_hashmap(column_schema, select_columns));
         let root_page = self.read_page(schema.root_page)?;
         let mut rows = Vec::<Row>::new();
         match root_page.page_header.page_type {
             PageType::LeafTable => {
                 for record_pos in root_page.cell_array {
-                    let offset = ((schema.root_page-1) * self.header.page_size as i64) +record_pos;
+                    let offset =
+                        ((schema.root_page - 1) * self.header.page_size as i64) + record_pos;
                     let record = self.read_record(offset)?;
                     let mut cells = Vec::<CellValue>::new();
-                    for c in &columns {
-                        cells.push(record.values[c.1.column_index.clone() as usize].clone())
+                    let columns_hashmap = columns.clone();
+                    for c in columns_hashmap.iter() {
+                        cells.push(
+                            record.values
+                                [c.1.column_index.expect("column requires index").clone() as usize]
+                                .clone(),
+                        )
                     }
 
-                    rows.push(Row { cells });
+                    rows.push(Row {
+                        cells,
+                        columns: columns_hashmap,
+                    });
                 }
             }
             _ => todo!("can't traverse btree yet"),
@@ -184,7 +247,20 @@ impl Connection {
         Ok(rows)
     }
 
-    fn proccess_sel_item(&mut self, sel_item: &SelectItem) -> Result<Vec<String>> {
+    fn count_rows(&mut self, table: &str) -> Result<i64> {
+        let schema = &self.get_table_schema(table)?;
+        let root_page = self.read_page(schema.root_page)?;
+        let mut count: i64 = 0;
+        match root_page.page_header.page_type {
+            PageType::LeafTable => {
+                count += root_page.cell_array.len() as i64;
+            }
+            _ => todo!("can't traverse btree yet"),
+        }
+        Ok(count)
+    }
+
+    fn proccess_sel_item(&mut self, sel_item: &SelectItem) -> Result<Vec<SelectCell>> {
         let mut names = Vec::new();
 
         match sel_item {
@@ -202,9 +278,14 @@ impl Connection {
                                         FunctionArg::Unnamed(ast::FunctionArgExpr::Expr(
                                             Expr::Identifier(ident),
                                         )) => {
-                                            names.push(ident.value.clone());
+                                            names.push(SelectCell::NamedColumn(
+                                                ident.value.clone().into(),
+                                            ));
                                         }
-                                        e => bail!("unsported function {}", e),
+                                        FunctionArg::Unnamed(ast::FunctionArgExpr::Wildcard) => {
+                                            names.push(SelectCell::TotalRowCount);
+                                        }
+                                        e => bail!("unsported function {}--", dbg!(e)),
                                     }
                                 }
                                 e => bail!("unsported function {}", e),
@@ -214,7 +295,7 @@ impl Connection {
                         }
                     }
                     Expr::Identifier(ident) => {
-                        names.push(ident.value.clone());
+                        names.push(SelectCell::NamedColumn(ident.value.to_owned()));
                     }
                     e => bail!("{} is not currenty supported", e),
                 };
@@ -398,4 +479,13 @@ pub enum TextEncoding {
 struct Varint {
     value: i64,
     size: u8,
+}
+
+#[derive(Debug)]
+pub enum SelectCell {
+    NamedColumn(String),
+    TotalRowCount,
+    // CountByColumn(String),
+    // Sum(String),
+    // Avg(String),
 }

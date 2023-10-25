@@ -1,8 +1,10 @@
-use crate::sqlite::record::CellValue;
+use std::{collections::HashMap, rc::Rc};
+
+use crate::sqlite::{column::Column, record::CellValue};
 #[derive(Debug)]
-pub struct Row{
-    // columns: Rc<HashMap<String,String>>,
-    pub cells : Vec<CellValue>
+pub struct Row {
+    pub columns: Rc<HashMap<String, Column>>,
+    pub cells: Vec<CellValue>,
 }
 
 // impl Row{
@@ -11,7 +13,3 @@ pub struct Row{
 //     }
 //
 // }
-
-
-
-
