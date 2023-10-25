@@ -1,7 +1,9 @@
 use anyhow::{bail, Result};
 use prettytable::{row, Table};
-use sqlite::schema::SchemaType;
 
+use crate::sqlite::schema::SchemaType;
+
+pub mod sqlite;
 
 fn main() -> Result<()> {
     let args = std::env::args().collect::<Vec<_>>();

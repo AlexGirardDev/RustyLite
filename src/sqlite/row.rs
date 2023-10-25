@@ -1,4 +1,4 @@
-use crate::record::CellValue;
+use crate::sqlite::record::CellValue;
 #[derive(Debug)]
 pub struct Row{
     // columns: Rc<HashMap<String,String>>,

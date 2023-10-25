@@ -11,7 +11,8 @@ use std::{
     usize,
 };
 
-use crate::{
+
+use crate::sqlite::{
     column::Column,
     page::{Page, PageHeader, PageType},
     record::{CellType, CellValue, Record, RecordHeader},

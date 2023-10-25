@@ -342,17 +342,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sqlite"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "itertools",
- "prettytable-rs",
- "sqlparser",
- "thiserror",
-]
-
-[[package]]
 name = "sqlite-starter-rust"
 version = "0.1.0"
 dependencies = [
@@ -362,7 +351,6 @@ dependencies = [
  "peg",
  "prettytable-rs",
  "regex",
- "sqlite",
  "sqlparser",
  "thiserror",
 ]
