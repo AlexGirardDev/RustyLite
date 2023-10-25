@@ -50,8 +50,15 @@ fn main() -> Result<()> {
         }
         query => {
             let result = conn.query(query)?;
-            for r in result{
-                println!("{}", r.cells.iter().map(|f|f.to_string()).collect::<Vec<String>>().join("|"));
+            for r in result {
+                println!(
+                    "{}",
+                    r.cells
+                        .iter()
+                        .map(|f| f.to_string())
+                        .collect::<Vec<String>>()
+                        .join("|")
+                );
             }
         }
     }

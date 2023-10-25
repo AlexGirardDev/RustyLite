@@ -176,21 +176,21 @@ impl Connection {
             cells,
             columns: Rc::new(Connection::column_hashmap(
                 self.get_table_columns(schema)?,
-                select_columns,
+                &select_columns,
             )),
         }])
     }
 
     fn column_hashmap(
         mut column_schema: HashMap<String, Column>,
-        select_columns: Vec<SelectCell>,
+        select_columns: &Vec<SelectCell>,
     ) -> HashMap<String, Column> {
         select_columns
             .into_iter()
             .map(|f| match f {
                 SelectCell::NamedColumn(name) => {
-                    let column = column_schema.remove(&name).unwrap();
-                    (name, column)
+                    let column = column_schema.remove(name).unwrap();
+                    (name.clone(), column)
                 }
                 SelectCell::TotalRowCount => (
                     String::from("count(*)"),
@@ -216,7 +216,7 @@ impl Connection {
             return self.handle_aggregate_select(table, select_columns);
         }
 
-        let columns = Rc::new(Connection::column_hashmap(column_schema, select_columns));
+        let columns = Rc::new(Connection::column_hashmap(column_schema, &select_columns));
         let root_page = self.read_page(schema.root_page)?;
         let mut rows = Vec::<Row>::new();
         match root_page.page_header.page_type {
@@ -227,12 +227,14 @@ impl Connection {
                     let record = self.read_record(offset)?;
                     let mut cells = Vec::<CellValue>::new();
                     let columns_hashmap = columns.clone();
-                    for c in columns_hashmap.iter() {
-                        cells.push(
-                            record.values
-                                [c.1.column_index.expect("column requires index").clone() as usize]
-                                .clone(),
-                        )
+                    for c in &select_columns {
+                        let column_key = match c {
+                            SelectCell::NamedColumn(name) => name,
+                            SelectCell::TotalRowCount => bail!(""),
+                        }
+                        .clone();
+                        let value = columns_hashmap[&column_key].column_index.unwrap();
+                        cells.push(record.values[value as usize].clone())
                     }
 
                     rows.push(Row {
