@@ -1,24 +1,25 @@
+use anyhow::{bail, Context, Ok, Result};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+};
+
+use self::{
+    index_interior::IndexInteriorPage, index_leaf::IndexLeafPage, page_header::PageHeader,
+    table_interior::TableInteriorPage, table_leaf::TableLeafPage,
+};
+
+pub mod index_interior;
+pub mod index_leaf;
+pub mod page_header;
+pub mod table_interior;
+pub mod table_leaf;
 
 #[derive(Debug)]
-pub struct Page {
-    pub page_header: PageHeader,
-    pub cell_array: Vec<i64>,
+pub enum Page {
+    TableLeaf(TableLeafPage),
+    TableInterior(TableInteriorPage),
+    IndexLeaf(IndexLeafPage),
+    IndexInterior(IndexInteriorPage),
 }
 
-#[derive(Debug)]
-pub struct PageHeader {
-    pub page_type: PageType,
-    pub free_block: u16,
-    pub cell_count: u16,
-    pub cell_content_area_offset: u16,
-    pub fragmented_free_bytes: u8,
-    pub right_pointer: Option<i64>
-}
-
-#[derive(Debug)]
-pub enum PageType {
-    InteriorIndex,
-    InteriorTable,
-    LeafIndex,
-    LeafTable,
-}

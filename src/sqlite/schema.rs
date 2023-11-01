@@ -1,30 +1,11 @@
 use std::fmt;
 
-#[derive(Debug)]
-pub struct SqliteSchema {
-    pub row_id: i64,
-    pub schema_type: SchemaType,
-    pub name: String,
-    pub table_name: String,
-    pub root_page: i64,
-    pub sql: String,
-}
+use self::{table_schema::TableSchema, index_schema::IndexSchema};
 
-#[derive(Debug)]
-pub enum SchemaType {
-    Table,
-    Index,
-    View,
-    Trigger,
-}
+pub mod index_schema;
+pub mod table_schema;
 
-impl fmt::Display for SchemaType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            SchemaType::Table => write!(f, "Table"),
-            SchemaType::Index => write!(f, "Table"),
-            SchemaType::View => write!(f, "View"),
-            SchemaType::Trigger => write!(f, "Trigger"),
-        }
-    }
+pub enum SqliteSchema{
+    Table(TableSchema),
+    Index(IndexSchema)
 }

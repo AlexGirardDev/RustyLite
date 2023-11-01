@@ -1,9 +1,11 @@
+use std::rc::Rc;
+
 use sqlparser::ast::DataType;
 
 #[derive(Debug,Clone)]
 pub struct Column {
     pub type_affinity: TypeAffinity,
-    pub column_index: Option<i64>,
+    pub name: Rc<str>,
 }
 
 #[derive(Debug,Clone)]
