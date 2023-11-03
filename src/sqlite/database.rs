@@ -1,4 +1,5 @@
-use anyhow::{bail, Ok, Result};
+use anyhow::{bail, Context, Result};
+use itertools::Itertools;
 use sqlparser::{
     ast,
     dialect::SQLiteDialect,
@@ -20,12 +21,13 @@ use super::{
         table_interior::TableInteriorPage, Page,
     },
     record::{CellType, CellValue, Record, RecordHeader},
-    schema::{self, index_schema::IndexSchema, table_schema::TableSchema, SqliteSchema},
+    schema::{index_schema::IndexSchema, table_schema::TableSchema, SqliteSchema},
 };
 
 pub struct Database {
-    file: File,
     pub header: DatabaseHeader,
+    file: File,
+    schema: Vec<Rc<SqliteSchema>>,
 }
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
@@ -38,8 +40,14 @@ impl Database {
         let header = DatabaseHeader {
             page_size: u16::from_be_bytes([buffer[16], buffer[17]]),
         };
-
-        Ok(Database { file, header })
+        let mut db = Database {
+            file,
+            header,
+            schema: Vec::new().into(),
+        };
+        let schema = db.read_schema()?;
+        db.schema = schema.into_iter().map(|f| Rc::new(f)).collect_vec();
+        Ok(db)
     }
 
     pub fn read_entire_record(&mut self, pos: Position) -> Result<Record> {
@@ -256,7 +264,47 @@ impl Database {
         }
         Ok(Varint { value, size })
     }
-    pub fn get_schema(&mut self) -> Result<Vec<SqliteSchema>> {
+
+    pub fn get_table_schema(&mut self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+        let schema = self
+            .schema
+            .iter()
+            .find(|f| match f.as_ref() {
+                SqliteSchema::Table(t) => t.name.as_ref() == table_name.as_ref(),
+                SqliteSchema::Index(_) => false,
+            })
+            .context(format!(
+                "clould not find table named {}",
+                table_name.as_ref()
+            ))?
+            .clone();
+        Ok(schema)
+    }
+
+    // pub fn get_table_indices(&mut self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+    //     let schema = self
+    //         .schema
+    //         .iter()
+    //         .find(|f| match f.as_ref() {
+    //             SqliteSchema::Table(t) => t.name.as_ref() == table_name.as_ref(),
+    //             SqliteSchema::Index(_) => false,
+    //         })
+    //         .context(format!(indices
+    //             "clould not find table named {}",
+    //             table_name.as_ref()
+    //         ))?
+    //         .clone();
+    //
+    //     todo!()
+    // }
+    //
+
+
+    pub fn get_schema(&mut self) -> Vec<Rc<SqliteSchema>> {
+        self.schema.clone()
+    }
+
+    fn read_schema(&mut self) -> Result<Vec<SqliteSchema>> {
         let page = self.read_page(1)?;
         let mut schemas: Vec<SqliteSchema> = Vec::new();
 
@@ -277,13 +325,12 @@ impl Database {
                         let ast = match Parser::parse_sql(&DIALECT, &sql) {
                             Result::Ok(ast) => ast,
                             Result::Err(err) => {
-                                 if let ParserError::ParserError(ref msg) = err{
+                                if let ParserError::ParserError(ref msg) = err {
                                     //sqlparser doesn't support create tables with datatypeless
                                     //columns https://github.com/sqlparser-rs/sqlparser-rs/issues/743
-                                    //one of the default schema columns does this 
+                                    //one of the default schema columns does this
                                     //the sqlite sequence table does this Result::Err(err) => return Err(err.into()),
-                                    if msg.contains("Expected a data type name, found:") 
-                                    {
+                                    if msg.contains("Expected a data type name, found:") {
                                         continue;
                                     }
                                 }

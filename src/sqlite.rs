@@ -9,6 +9,8 @@ pub mod column;
 pub mod row;
 pub mod record;
 pub mod database;
+pub mod sql;
+pub mod btree;
 
 #[cfg(test)]
 mod tests;

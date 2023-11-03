@@ -1,33 +1,63 @@
-use anyhow::{Ok, Result};
-use sqlparser::dialect::SQLiteDialect;
+use anyhow::{bail, Ok, Result};
+use sqlparser::{dialect::SQLiteDialect, parser::Parser};
 use std::{rc::Rc, usize};
 
 use crate::sqlite::schema::SqliteSchema;
 
-use super::{database::Database, schema};
-
-pub struct Connection {
-    db: Database,
-    schema: Rc<Vec<SqliteSchema>>,
-}
+use super::{database::Database, schema, sql::sql_engine};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
+pub struct Connection {
+    db: Database,
+}
 
 impl Connection {
     pub fn new(file_path: impl Into<String>) -> Result<Connection> {
-        let mut db = Database::new(file_path)?;
-        let schema = Rc::new(db.get_schema()?);
-        Ok(Connection { db, schema })
+        Ok(Connection {
+            db: Database::new(file_path)?,
+        })
     }
 
-    pub fn get_schema(&mut self) -> Rc<Vec<SqliteSchema>> {
-        self.schema.clone()
+    pub fn get_schema(&mut self) -> Vec<Rc<SqliteSchema>> {
+        self.db.get_schema()
     }
 
     pub fn get_header(&mut self) -> &DatabaseHeader {
         &self.db.header
     }
+    pub fn query(&mut self, sql: impl AsRef<str>) -> Result<()> {
+        let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
 
+        let exp = match (ast.pop(), ast.pop()) {
+            (Some(s), None) => s,
+            _ => bail!("only a single expression is currently supported"),
+        };
+        let mut select = match exp {
+            sqlparser::ast::Statement::Query(q) => match *q.body {
+                sqlparser::ast::SetExpr::Select(select) => select,
+                e => bail!("{} queries are not currently supported", e),
+            },
+            q => bail!("{} queries are not currently supported", q),
+        };
+
+        let source = match (select.from.pop(), select.from.pop()) {
+            (Some(s), None) => s,
+            _ => bail!("only a single source is currenly supported"),
+        };
+
+        let source_name = match source.relation {
+        sqlparser::ast::TableFactor::Table { mut name, ..} => {
+        match (name.0.pop(), name.0.pop()){
+            (Some(n), None) => n.value,
+            _ => bail!("only a single expression is currently supported"), } }
+            ,
+        _ => bail!("currently only table sources are supported")
+    };
+
+        let schema = self.db.get_table_schema(source_name);
+
+        Ok(())
+    }
     //     let page = self.read_page()?;
     //
     //     let mut schema: Vec<SqliteSchema> = Vec::new();

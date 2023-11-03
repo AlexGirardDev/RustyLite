@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
 use prettytable::{row, Table};
+use sqlite::sql::sql_engine;
 
 use crate::sqlite::schema::SqliteSchema;
 
@@ -17,29 +18,27 @@ fn main() -> Result<()> {
     // Parse command and act accordingly
     let command = &args[2];
     let mut conn = sqlite::open(&args[1])?;
-    
+
     match command.as_str() {
         ".dbinfo" => {
             println!("Logs from your program will appear here!");
             let schema = conn.get_schema();
             println!("database page size: {}", conn.get_header().page_size);
-            println!("number of tables: {}",schema
-                .clone()
+            let c = schema
                 .iter()
-                .filter(|x| matches!(x, SqliteSchema::Table(_)))
-                .count());
+                .filter(|x| matches!(x.as_ref(), SqliteSchema::Table(_)))
+                .count();
+            println!("number of tables: {}", c);
         }
 
         ".tables" => {
             let schema = conn.get_schema();
             let names = schema
                 .iter()
-                .filter(|x| matches!(x, SqliteSchema::Table(_)))
-                .map(|x| {
-                    match x{
-                        SqliteSchema::Table(t) => t.name.clone(),
-                        SqliteSchema::Index(i) => i.name.clone()
-                    }
+                .filter(|x| matches!(x.as_ref(), SqliteSchema::Table(_)))
+                .map(|x| match x.as_ref() {
+                    SqliteSchema::Table(t) => t.name.clone(),
+                    SqliteSchema::Index(i) => i.name.clone(),
                 })
                 .collect_vec();
             // for name in names {
@@ -66,6 +65,7 @@ fn main() -> Result<()> {
             // table.printstd();
         }
         query => {
+            // let wow = sql_engine::query(query);
             // let result = conn.query(query)?;
             // for r in result {
             //     println!(
