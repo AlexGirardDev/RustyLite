@@ -1,9 +1,7 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
-use prettytable::{row, Table};
-use sqlite::sql::sql_engine;
 
-use crate::sqlite::schema::SqliteSchema;
+use crate::sqlite::{btree::TableBTree, schema::SqliteSchema};
 
 pub mod sqlite;
 
@@ -17,7 +15,7 @@ fn main() -> Result<()> {
 
     // Parse command and act accordingly
     let command = &args[2];
-    let mut conn = sqlite::open(&args[1])?;
+    let conn = sqlite::open(&args[1])?;
 
     match command.as_str() {
         ".dbinfo" => {
@@ -47,6 +45,18 @@ fn main() -> Result<()> {
             print!("{}", names.join(" "));
         }
         ".schema" => {
+            let tree = conn.get_tree("superheroes".into())?;
+            for t in tree.root_node.cells(){
+                
+                println!("{:?}",t);
+                
+            }
+            // println!("test");
+            // println!("{:?}",tree);
+            // println!("{:?}", tree);
+            // for leaf in TableBTree::get_leaf_cells(&tree.root_node) {
+            //     println!("{} - {}", leaf.page_number, leaf.offset);
+            // }
             // let schema = dbg!(conn.get_schema()?);
             // let mut table = Table::new();
             // table.add_row(row!["Id", "Type", "Name", "R_Page"]);
@@ -64,7 +74,7 @@ fn main() -> Result<()> {
             // }
             // table.printstd();
         }
-        query => {
+        _query => {
             // let wow = sql_engine::query(query);
             // let result = conn.query(query)?;
             // for r in result {

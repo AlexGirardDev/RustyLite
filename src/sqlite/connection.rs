@@ -4,7 +4,7 @@ use std::{rc::Rc, usize};
 
 use crate::sqlite::schema::SqliteSchema;
 
-use super::{database::Database, schema, sql::sql_engine};
+use super::{btree::TableBTree, database::Database};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
 pub struct Connection {
@@ -18,14 +18,15 @@ impl Connection {
         })
     }
 
-    pub fn get_schema(&mut self) -> Vec<Rc<SqliteSchema>> {
+    pub fn get_schema(&self) -> Vec<Rc<SqliteSchema>> {
         self.db.get_schema()
     }
 
-    pub fn get_header(&mut self) -> &DatabaseHeader {
+    pub fn get_header(&self) -> &DatabaseHeader {
         &self.db.header
     }
-    pub fn query(&mut self, sql: impl AsRef<str>) -> Result<()> {
+
+    pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
 
         let exp = match (ast.pop(), ast.pop()) {
@@ -46,17 +47,34 @@ impl Connection {
         };
 
         let source_name = match source.relation {
-        sqlparser::ast::TableFactor::Table { mut name, ..} => {
-        match (name.0.pop(), name.0.pop()){
-            (Some(n), None) => n.value,
-            _ => bail!("only a single expression is currently supported"), } }
-            ,
-        _ => bail!("currently only table sources are supported")
-    };
+            sqlparser::ast::TableFactor::Table { mut name, .. } => {
+                match (name.0.pop(), name.0.pop()) {
+                    (Some(n), None) => n.value,
+                    _ => bail!("only a single expression is currently supported"),
+                }
+            }
+            _ => bail!("currently only table sources are supported"),
+        };
 
-        let schema = self.db.get_table_schema(source_name);
+        let _schema = self.db.get_table_schema(source_name);
 
         Ok(())
+    }
+    pub fn get_tree(&self, table_name: String) -> Result<TableBTree> {
+        let schema = &self.db.get_table_schema(table_name)?;
+        let wow = TableBTree::new(&self.db, schema.clone())?;
+        Ok(wow)
+    }
+    pub fn read_column(&self, table_name: String, column_name: String) {
+        let schema = &self.db.get_table_schema(table_name).unwrap();
+        let wow = TableBTree::new(&self.db, schema.clone()).unwrap();
+        let reader = wow.row_reader(&self.db);
+
+        for r in reader {
+            let row = r.unwrap();
+            
+        }
+
     }
     //     let page = self.read_page()?;
     //

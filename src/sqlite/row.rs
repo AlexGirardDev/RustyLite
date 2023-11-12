@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use crate::sqlite::{column::Column, record::CellValue};
 #[derive(Debug)]
 pub struct Row {
-    pub columns: Rc<HashMap<String, Column>>,
+    pub columns: Rc<HashMap<String, usize>>,
     pub cells: Vec<CellValue>,
 }
 

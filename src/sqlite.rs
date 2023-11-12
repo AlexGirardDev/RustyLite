@@ -1,6 +1,6 @@
-use std::{fs::File, io::Read};
+
 use anyhow::Result;
-use connection::{Connection, DatabaseHeader};
+use connection::{Connection};
 
 pub mod connection;
 pub mod page;

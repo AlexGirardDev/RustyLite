@@ -6,6 +6,7 @@ use sqlparser::{
     parser::{Parser, ParserError},
 };
 use std::{
+    cell::RefCell,
     fs::File,
     io::{Read, Seek, SeekFrom},
     rc::Rc,
@@ -17,8 +18,11 @@ use super::{
     column::Column,
     connection::DatabaseHeader,
     page::{
-        index_interior::IndexInteriorPage, index_leaf::IndexLeafPage, page_header::PageType,
-        table_interior::TableInteriorPage, Page,
+        index_interior::IndexInteriorPage,
+        index_leaf::IndexLeafPage,
+        page_header::PageType,
+        table_interior::{TableInteriorCell, TableInteriorPage},
+        IndexPage, Page, TablePage,
     },
     record::{CellType, CellValue, Record, RecordHeader},
     schema::{index_schema::IndexSchema, table_schema::TableSchema, SqliteSchema},
@@ -26,7 +30,7 @@ use super::{
 
 pub struct Database {
     pub header: DatabaseHeader,
-    file: File,
+    file: RefCell<File>,
     schema: Vec<Rc<SqliteSchema>>,
 }
 
@@ -41,23 +45,24 @@ impl Database {
             page_size: u16::from_be_bytes([buffer[16], buffer[17]]),
         };
         let mut db = Database {
-            file,
+            file: file.into(),
             header,
-            schema: Vec::new().into(),
+            schema: Vec::new(),
         };
         let schema = db.read_schema()?;
-        db.schema = schema.into_iter().map(|f| Rc::new(f)).collect_vec();
+        db.schema = schema.into_iter().map(Rc::new).collect_vec();
+
         Ok(db)
     }
 
-    pub fn read_entire_record(&mut self, pos: Position) -> Result<Record> {
+    pub fn read_entire_record(&self, pos: Position) -> Result<Record> {
         self.seek_position(pos)?;
         let payload_size = self.read_varint()?.value;
         let row_id = self.read_varint()?.value;
-        let record_header = self.read_record_header()?;
+        let record_header = self.read_record_header(Position::Relative)?;
         let mut values = Vec::<CellValue>::new();
         for val in &record_header.headers {
-            values.push(self.read_cell(&val)?);
+            values.push(self.read_record_cell(val)?);
         }
         Ok(Record {
             payload_size,
@@ -67,7 +72,7 @@ impl Database {
         })
     }
 
-    pub fn read_record_header(&mut self) -> Result<RecordHeader> {
+    pub fn read_record_header(&self, pos:Position) -> Result<RecordHeader> {
         let Varint { mut value, size } = self.read_varint()?;
 
         let header_size = value;
@@ -103,14 +108,14 @@ impl Database {
         })
     }
 
-    fn read_record(&mut self, start: i64) -> Result<Record> {
-        self.file.seek(SeekFrom::Start(start as u64))?;
+    fn read_record(&self, start: i64) -> Result<Record> {
+        self.file.borrow_mut().seek(SeekFrom::Start(start as u64))?;
         let payload_size = self.read_varint()?.value;
         let row_id = self.read_varint()?.value;
-        let record_header = self.read_record_header()?;
+        let record_header = self.read_record_header(Position::Relative)?;
         let mut values = Vec::<CellValue>::new();
         for val in &record_header.headers {
-            values.push(self.read_cell(&val)?);
+            values.push(self.read_cell(val)?);
         }
         Ok(Record {
             payload_size,
@@ -120,30 +125,49 @@ impl Database {
         })
     }
 
-    fn get_location(&self, page_number: i64, offset: impl Into<i64>) -> Result<i64> {
+    fn get_location(&self, page_number: u32, offset: u16) -> Result<i64> {
         if page_number <= 0 {
             bail!("pages start at index 1");
         }
-        let offset = offset.into();
-        if offset > self.header.page_size as i64 {
+        if offset > self.header.page_size {
             bail!("page offset can't be larger than page size");
         }
 
         let page_start = match page_number {
             1 => 0,
-            num => (num - 1) * self.header.page_size as i64,
+            num => (num - 1) * self.header.page_size as u32,
         };
-        Ok(page_start + offset)
+        Ok((page_start + offset as u32) as i64)
     }
-    pub fn read_page(&mut self, page_number: i64) -> Result<Page> {
-        let mut buffer = [0; 1];
-        let page_start = match page_number {
-            1 => 100,
-            num => (num - 1) * self.header.page_size as i64,
-        };
+    pub fn read_table_page(&self, page_number: u32) -> Result<TablePage> {
+        match self.read_page(page_number)? {
+            Page::Table(t) => Ok(t),
+            Page::Index(_) => bail!("Expectting table page but got index"),
+        }
+    }
 
-        self.file.seek(SeekFrom::Start(page_start as u64))?;
-        self.file.read_exact(&mut buffer)?;
+    pub fn read_index_page(&self, page_number: u32) -> Result<IndexPage> {
+        match self.read_page(page_number)? {
+            Page::Table(_) => bail!("Expectting table page but got index"),
+            Page::Index(i) => Ok(i),
+        }
+    }
+    pub fn read_table_interior_cell(
+        &self,
+        _page_number: u32,
+        _cell_pointer: i64,
+    ) -> Result<TableInteriorCell> {
+        todo!()
+    }
+
+    fn read_page(&self, page_number: u32) -> Result<Page> {
+        let mut buffer = [0; 1];
+        let page_start: i64 = match page_number {
+            1 => 100,
+            num => (num - 1) * self.header.page_size as u32,
+        } as i64;
+
+        self.seek_read(page_start as u64, &mut buffer)?;
         let page_type = match buffer[0] {
             0x02 => PageType::IndexInterior,
             0x05 => PageType::TableInterior,
@@ -152,36 +176,25 @@ impl Database {
             _ => bail!("invalid page type "),
         };
 
-        let mut buffer = [0; 2];
-
-        self.file.read_exact(&mut buffer)?;
-        let free_block = u16::from_be_bytes(buffer);
-
-        self.file.read_exact(&mut buffer)?;
-        let cell_count = u16::from_be_bytes(buffer);
-
-        self.file.read_exact(&mut buffer)?;
-        let cell_content_area_offset = u16::from_be_bytes(buffer);
+        let free_block = self.read_u16()?;
+        let cell_count = self.read_u16()?;
+        let cell_content_area_offset = self.read_u16()?;
 
         let mut buffer = [0; 1];
-        self.file.read_exact(&mut buffer)?;
+        self.read_exact(&mut buffer)?;
         let fragmented_free_bytes = u8::from_be_bytes(buffer);
 
         let right_cell = match page_type {
-            PageType::IndexInterior | PageType::TableInterior => {
-                let mut buffer = [0; 4];
-                self.file.read_exact(&mut buffer)?;
-                u32::from_be_bytes(buffer)
-            }
+            PageType::IndexInterior | PageType::TableInterior => self.read_u32()?,
             _ => 0,
         };
 
         let mut cell_array: Vec<u8> = vec![0; cell_count as usize * 2];
 
-        self.file.read_exact(cell_array.as_mut_slice())?;
-        let cell_pointers: Vec<u16> = cell_array
+        self.read_exact(cell_array.as_mut_slice())?;
+        let cell_pointers: Vec<(u32, u16)> = cell_array
             .chunks(2)
-            .map(|f| u16::from_be_bytes([f[0], f[1]]))
+            .map(|f| (page_number, u16::from_be_bytes([f[0], f[1]])))
             .collect();
 
         let header = PageHeader {
@@ -193,32 +206,34 @@ impl Database {
         };
 
         Ok(match &page_type {
-            PageType::IndexInterior => Page::IndexInterior(IndexInteriorPage {
+            // PageType::IndexInterior => Page::Index(IndexPage::Interior(IndexInteriorPage {
+            //     header,
+            //     right_cell,
+            //     page_number,
+            //     cell_pointers,
+            // })),
+            PageType::TableInterior => Page::Table(TablePage::Interior(TableInteriorPage {
                 header,
-                right_cell,
+                // right_cell,
                 page_number,
                 cell_pointers,
-            }),
-            PageType::TableInterior => Page::TableInterior(TableInteriorPage {
-                header,
-                right_cell,
-                page_number,
-                cell_pointers,
-            }),
-            PageType::IndexLeaf => Page::IndexLeaf(IndexLeafPage {
-                header,
-                page_number,
-                cell_pointers,
-            }),
-            PageType::TableLeaf => Page::TableLeaf(TableLeafPage {
+            })),
+            // PageType::IndexLeaf => Page::Index(IndexPage::Leaf(IndexLeafPage {
+            //     header,
+            //     page_number,
+            //     cell_pointers,
+            // })),
+            PageType::TableLeaf => Page::Table(TablePage::Leaf(TableLeafPage {
                 header,
                 page_number,
                 cell_pointers,
-            }),
+            })),
+            _ => todo!(),
         })
     }
 
-    fn read_cell(&mut self, cell_type: &CellType) -> Result<CellValue> {
+    pub fn read_record_cell(&self, pos: Position,cell_type: &CellType) -> Result<CellValue> {
+        self.seek_position(pos)?;
         return Ok(match cell_type {
             CellType::Null => CellValue::Null,
             CellType::Varint(size) => {
@@ -227,37 +242,37 @@ impl Database {
                 if size <= 0 {
                     CellValue::Int(0)
                 } else {
-                    self.file.read_exact(&mut buff[8 - size..8])?;
+                    self.read_exact(&mut buff[8 - size..8])?;
                     CellValue::Int(i64::from_be_bytes(buff))
                 }
             }
             CellType::Float64 => {
                 let mut buff = [0; 8];
-                self.file.read(&mut buff).unwrap();
+                self.file.borrow_mut().read(&mut buff).unwrap();
                 CellValue::Float(f64::from_be_bytes(buff))
             }
             CellType::Blob(len) => {
                 let mut data = vec![0u8; *len as usize];
-                self.file.read(&mut data).unwrap();
+                self.file.borrow_mut().read(&mut data).unwrap();
                 CellValue::Blob(data)
             }
             CellType::String(len) => {
                 let mut data = vec![0u8; *len as usize];
-                self.file.read(&mut data).unwrap();
+                self.file.borrow_mut().read(&mut data).unwrap();
                 CellValue::String(String::from_utf8(data)?)
             }
         });
     }
 
-    fn read_varint(&mut self) -> Result<Varint> {
+    pub fn read_varint(&self) -> Result<Varint> {
         let mut buf = [0; 1];
         let mut more = true;
         let mut value: i64 = 0;
         let mut size = 0;
         while more {
-            self.file.read_exact(&mut buf).unwrap();
+            self.read_exact(&mut buf)?;
             size += 1;
-            let byte = buf[0] as u8;
+            let byte = buf[0];
             more = byte & 0b1000_0000 != 0;
             value <<= 7;
             value |= i64::from(0b0111_1111 & byte);
@@ -265,7 +280,7 @@ impl Database {
         Ok(Varint { value, size })
     }
 
-    pub fn get_table_schema(&mut self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+    pub fn get_table_schema(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
         let schema = self
             .schema
             .iter()
@@ -281,7 +296,7 @@ impl Database {
         Ok(schema)
     }
 
-    // pub fn get_table_indices(&mut self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+    // pub fn get_table_indices(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
     //     let schema = self
     //         .schema
     //         .iter()
@@ -299,18 +314,17 @@ impl Database {
     // }
     //
 
-
-    pub fn get_schema(&mut self) -> Vec<Rc<SqliteSchema>> {
+    pub fn get_schema(&self) -> Vec<Rc<SqliteSchema>> {
         self.schema.clone()
     }
 
-    fn read_schema(&mut self) -> Result<Vec<SqliteSchema>> {
-        let page = self.read_page(1)?;
+    fn read_schema(&self) -> Result<Vec<SqliteSchema>> {
+        let page = self.read_table_page(1)?;
         let mut schemas: Vec<SqliteSchema> = Vec::new();
 
-        let Page::TableLeaf(page) = page else {bail!("sql schhemaa table must be a leaf page")};
+        let TablePage::Leaf(page) = page else {bail!("sql schhemaa table must be a leaf page")};
         for pointer in page.cell_pointers {
-            let mut record = self.read_entire_record(Position::new(1, pointer))?;
+            let mut record = self.read_entire_record(Position::new(1, pointer.1))?;
             if record.record_header.headers.len() != 5 {
                 bail!("Schema table must have 5 fields");
             }
@@ -359,7 +373,7 @@ impl Database {
                             row_id: record.row_id,
                             name: name.into(),
                             table_name: table_name.into(),
-                            root_page,
+                            root_page: root_page as u32,
                             sql,
                             columns,
                         })
@@ -368,7 +382,7 @@ impl Database {
                         row_id: record.row_id,
                         name: name.into(),
                         table_name: table_name.into(),
-                        root_page,
+                        root_page: root_page as u32,
                         sql,
                     }),
                     "view" => bail!("views are not currenty supported"),
@@ -383,38 +397,73 @@ impl Database {
         Ok(schemas)
     }
 
-    fn seek_position(&mut self, pos: Position) -> Result<()> {
+    fn seek_position(&self, pos: Position) -> Result<()> {
         match pos {
             Position::Relative => (),
             Position::Absolute {
                 page_number,
                 pointer,
             } => {
-                self.file.seek(SeekFrom::Start(
-                    self.get_location(page_number, pointer)? as u64
+                self.file.borrow_mut().seek(SeekFrom::Start(
+                    self.get_location(page_number, pointer)? as u64,
                 ))?;
             }
         }
         Ok(())
     }
-    fn seek(&mut self, page_number: i64, pointer: u16) -> Result<()> {
-        self.file.seek(SeekFrom::Start(
-            self.get_location(page_number, pointer)? as u64
+    pub fn read_u8(&self) -> Result<u8> {
+        let mut buffer = [0; 1];
+        self.read_exact(&mut buffer)?;
+        Ok(u8::from_be_bytes(buffer))
+    }
+    pub fn read_u16(&self) -> Result<u16> {
+        let mut buffer = [0; 2];
+        self.read_exact(&mut buffer)?;
+        Ok(u16::from_be_bytes(buffer))
+    }
+
+    pub fn read_u32(&self) -> Result<u32> {
+        let mut buffer = [0; 4];
+        self.read_exact(&mut buffer)?;
+        Ok(u32::from_be_bytes(buffer))
+    }
+
+    pub fn read_u64(&self) -> Result<u64> {
+        let mut buffer = [0; 8];
+        self.read_exact(&mut buffer)?;
+        Ok(u64::from_be_bytes(buffer))
+    }
+
+    pub fn seek(&self, page_number: u32, offset: u16) -> Result<()> {
+        self.file.borrow_mut().seek(SeekFrom::Start(
+            self.get_location(page_number, offset)? as u64
         ))?;
+        Ok(())
+    }
+
+    fn seek_read(&self, offset: u64, buf: &mut [u8]) -> Result<()> {
+        self.file.borrow_mut().seek(SeekFrom::Start(offset))?;
+        self.file.borrow_mut().read_exact(buf)?;
+        Ok(())
+    }
+
+    fn read_exact(&self, buf: &mut [u8]) -> Result<()> {
+        self.file.borrow_mut().read_exact(buf)?;
         Ok(())
     }
 }
 
 pub struct Varint {
-    value: i64,
-    size: u8,
+    pub value: i64,
+    pub size: u8,
 }
+#[derive(Debug)]
 pub enum Position {
     Relative,
-    Absolute { page_number: i64, pointer: u16 },
+    Absolute { page_number: u32, pointer: u16 },
 }
 impl Position {
-    pub fn new(page_number: i64, pointer: u16) -> Position {
+    pub fn new(page_number: u32, pointer: u16) -> Position {
         Position::Absolute {
             page_number,
             pointer,
