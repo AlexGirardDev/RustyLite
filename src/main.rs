@@ -46,11 +46,14 @@ fn main() -> Result<()> {
         }
         ".schema" => {
             let tree = conn.get_tree("superheroes".into())?;
-            for t in tree.root_node.cells(){
-                
-                println!("{:?}",t);
-                
-            }
+            println!("{:?}",tree.schema);
+            
+            // for t in tree.root_node.cells(){
+            //     println!("{:?}",t);
+            //     
+            // }
+            //
+            conn.print_column("superheroes".into(), "name".into())?;
             // println!("test");
             // println!("{:?}",tree);
             // println!("{:?}", tree);

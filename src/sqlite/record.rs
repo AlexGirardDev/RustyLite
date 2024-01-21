@@ -14,8 +14,8 @@ pub struct Record {
 pub struct RecordHeader {
     pub headers: Vec<CellType>,
     pub header_size: i64,
-    page_size: u32,
-    offset: u16,
+    // page_size: u32,
+    // offset: u16,
 }
 
 impl RecordHeader {

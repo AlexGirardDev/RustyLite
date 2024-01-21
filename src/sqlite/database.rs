@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use sqlparser::{
     ast,
-    dialect::SQLiteDialect,
+    dialect::{SQLiteDialect, PostgreSqlDialect},
     parser::{Parser, ParserError},
 };
 use std::{
@@ -62,7 +62,7 @@ impl Database {
         let record_header = self.read_record_header(Position::Relative)?;
         let mut values = Vec::<CellValue>::new();
         for val in &record_header.headers {
-            values.push(self.read_record_cell(val)?);
+            values.push(self.read_record_cell(Position::Relative,val)?);
         }
         Ok(Record {
             payload_size,
@@ -74,7 +74,6 @@ impl Database {
 
     pub fn read_record_header(&self, pos:Position) -> Result<RecordHeader> {
         let Varint { mut value, size } = self.read_varint()?;
-
         let header_size = value;
         value -= size as i64;
         let mut headers: Vec<CellType> = Vec::new();
@@ -104,7 +103,9 @@ impl Database {
         }
         Ok(RecordHeader {
             headers,
-            header_size,
+            header_size
+
+
         })
     }
 
@@ -115,7 +116,7 @@ impl Database {
         let record_header = self.read_record_header(Position::Relative)?;
         let mut values = Vec::<CellValue>::new();
         for val in &record_header.headers {
-            values.push(self.read_cell(val)?);
+            // values.push(self.read_cell(val)?);
         }
         Ok(Record {
             payload_size,

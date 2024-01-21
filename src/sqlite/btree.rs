@@ -7,8 +7,7 @@ use crate::sqlite::schema;
 use super::{
     database::{Database, Position},
     page::{table_interior::TableInteriorPage, TablePage},
-    record::RecordHeader,
-    row::Row,
+    record::{CellValue, Record},
     schema::{table_schema::TableSchema, SqliteSchema},
 };
 use anyhow::{bail, Result};
@@ -57,7 +56,7 @@ impl TableNode {
 
 impl TableBTree {
     pub fn new(db: &Database, schema: Rc<SqliteSchema>) -> Result<Self> {
-        let SqliteSchema::Table(t_schema) = schema.as_ref() else{
+        let SqliteSchema::Table(t_schema) = schema.as_ref() else {
             bail!("expected table schema but got index");
         };
         let root_node = TableNode::new(db.read_table_page(t_schema.root_page)?, db)?;
@@ -78,7 +77,7 @@ impl TableBTree {
         Ok(result)
     }
 
-    pub fn row_reader<'a>(&'a self, db: &'a Database) -> RowReader{
+    pub fn row_reader<'a>(&'a self, db: &'a Database) -> RowReader {
         RowReader::new(&self, &db)
     }
 }
@@ -102,41 +101,52 @@ impl<'a> Iterator for RowReader<'a> {
     type Item = Result<ReaderRow<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let wow = self.iter.next().map(|item| {
-            self.db.read_record_header(Position::Absolute {
+        let record = self.iter.next().map(|item| {
+            //     self.db.read_record_header(Position::Absolute {
+            //         page_number: item.0,
+            //         pointer: item.1,
+            //     })
+            self.db.read_entire_record(Position::Absolute {
                 page_number: item.0,
                 pointer: item.1,
-            })
-        })?;
-        let record_header = match wow {
-            Ok(i) => i,
-            Err(e) => return Some(Err(e)),
-        };
+            }).unwrap()
+        }).unwrap();
+        // let record_header = match wow {
+        //     Ok(i) => i,
+        //     Err(e) => return Some(Err(e)),
+        // };
 
-        Some(Ok(ReaderRow::new(&self.db, record_header, self.schema.clone())))
+        Some(Ok(ReaderRow::new(&self.db, record, self.schema.clone())))
     }
 }
 
 pub struct ReaderRow<'a> {
-    record_header: RecordHeader,
+    // record_header: RecordHeader,
+    record: Record,
     schema: Rc<SqliteSchema>,
     db: &'a Database,
 }
 
 impl<'a> ReaderRow<'a> {
-    pub fn new(db: &'a Database, record_header: RecordHeader, schema: Rc<SqliteSchema>) -> Self {
-        ReaderRow {
-            record_header,
-            schema,
-            db,
-        }
+    pub fn new(db: &'a Database, record: Record, schema: Rc<SqliteSchema>) -> Self {
+        // db.read_entire_record(pos)
+        ReaderRow { record, schema, db }
     }
-    fn read_column(&self, column_name:String){
-        let SqliteSchema::Table(schema) = self.schema.as_ref() else{ unreachable!("this has to be a table schema"); };
-        let column = schema.columns.iter().enumerate().find(|f|*f.1.name ==column_name);
-        // self.db.read_record_cell(Position::Relative, cell_type)
-        
+    pub fn read_column(&self, column_name: &str) -> Result<CellValue> {
+        let SqliteSchema::Table(schema) = self.schema.as_ref() else {
+            unreachable!("this has to be a table schema");
+        };
 
+        let (index, schema) = schema
+            .columns
+            .iter()
+            .enumerate()
+            .find(|f| *f.1.name == *column_name)
+            .unwrap();
+
+        Ok(self.record.values[index].clone())
+
+        // self.db.read_record_cell(Position::Relative, cell_type)
     }
 }
 

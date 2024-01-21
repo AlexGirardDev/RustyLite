@@ -4,7 +4,10 @@ use std::{rc::Rc, usize};
 
 use crate::sqlite::schema::SqliteSchema;
 
-use super::{btree::TableBTree, database::Database};
+use super::{
+    btree::{RowReader, TableBTree},
+    database::Database,
+};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
 pub struct Connection {
@@ -65,17 +68,22 @@ impl Connection {
         let wow = TableBTree::new(&self.db, schema.clone())?;
         Ok(wow)
     }
-    pub fn read_column(&self, table_name: String, column_name: String) {
-        let schema = &self.db.get_table_schema(table_name).unwrap();
-        let wow = TableBTree::new(&self.db, schema.clone()).unwrap();
-        let reader = wow.row_reader(&self.db);
 
+    pub fn print_column(&self, table_name: String, column_name: String) -> Result<()> {
+        let schema = &self.db.get_table_schema(table_name)?;
+        let tree = TableBTree::new(&self.db, schema.clone())?;
+        let reader = tree.row_reader(&self.db);
         for r in reader {
             let row = r.unwrap();
-            
+            let value = row.read_column(&column_name)?;
+            println!("{}", value);
         }
-
+        Ok(())
     }
+    // pub fn get_row_reader<>(&'a self,tree: &'a TableBTree )->&RowReader{
+    //     &tree.row_reader(&self.db)
+    //
+    // }
     //     let page = self.read_page()?;
     //
     //     let mut schema: Vec<SqliteSchema> = Vec::new();
