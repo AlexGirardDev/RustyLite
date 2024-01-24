@@ -22,7 +22,7 @@ impl Connection {
     }
 
     pub fn get_schema(&self) -> Vec<Rc<SqliteSchema>> {
-        self.db.get_schema()
+        self.db.get_schemas()
     }
 
     pub fn get_header(&self) -> &DatabaseHeader {
@@ -73,7 +73,9 @@ impl Connection {
         let schema = &self.db.get_table_schema(table_name)?;
         let tree = TableBTree::new(&self.db, schema.clone())?;
         let reader = tree.row_reader(&self.db);
+            println!("lol");
         for r in reader {
+            println!("lol");
             let row = r.unwrap();
             let value = row.read_column(&column_name)?;
             println!("{}", value);
@@ -88,7 +90,7 @@ impl Connection {
     //
     //     let mut schema: Vec<SqliteSchema> = Vec::new();
     //
-    //     for id in page.cell_array {
+   //     for id in page.cell_array {
     //         let mut record = self.read_record(id)?;
     //         if record.record_header.headers.len() != 5 {
     //             bail!("Schema table must have 5 fields");

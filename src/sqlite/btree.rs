@@ -7,7 +7,7 @@ use crate::sqlite::schema;
 use super::{
     database::{Database, Position},
     page::{table_interior::TableInteriorPage, TablePage},
-    record::{CellValue, Record},
+    record::{CellValue, Record, RecordHeader},
     schema::{table_schema::TableSchema, SqliteSchema},
 };
 use anyhow::{bail, Result};
@@ -101,27 +101,16 @@ impl<'a> Iterator for RowReader<'a> {
     type Item = Result<ReaderRow<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let record = self.iter.next().map(|item| {
-            //     self.db.read_record_header(Position::Absolute {
-            //         page_number: item.0,
-            //         pointer: item.1,
-            //     })
-            self.db.read_entire_record(Position::Absolute {
-                page_number: item.0,
-                pointer: item.1,
-            }).unwrap()
-        }).unwrap();
-        // let record_header = match wow {
-        //     Ok(i) => i,
-        //     Err(e) => return Some(Err(e)),
-        // };
-
+        let record = self.iter.next().map(|(page_number, pointer)| {
+                self.db.read_record(
+                    *page_number,
+                    *pointer)
+        })?.unwrap();
         Some(Ok(ReaderRow::new(&self.db, record, self.schema.clone())))
     }
 }
 
 pub struct ReaderRow<'a> {
-    // record_header: RecordHeader,
     record: Record,
     schema: Rc<SqliteSchema>,
     db: &'a Database,
@@ -137,16 +126,21 @@ impl<'a> ReaderRow<'a> {
             unreachable!("this has to be a table schema");
         };
 
-        let (index, schema) = schema
+        let (index, _) = schema
             .columns
             .iter()
             .enumerate()
             .find(|f| *f.1.name == *column_name)
             .unwrap();
 
-        Ok(self.record.values[index].clone())
+        // todo!()
+        // self.
 
-        // self.db.read_record_cell(Position::Relative, cell_type)
+        let pos =self.record.get_cell_position(index);
+         
+        self.db.read_record_cell2(&self.record, index)
+        //
+        // // self.db.read_record_cell(Position::Relative, cell_type)
     }
 }
 

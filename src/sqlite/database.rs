@@ -1,8 +1,9 @@
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
+use nom::Offset;
 use sqlparser::{
     ast,
-    dialect::{SQLiteDialect, PostgreSqlDialect},
+    dialect::{PostgreSqlDialect, SQLiteDialect},
     parser::{Parser, ParserError},
 };
 use std::{
@@ -49,30 +50,31 @@ impl Database {
             header,
             schema: Vec::new(),
         };
-        let schema = db.read_schema()?;
+        let schema = db.read_schemas()?;
         db.schema = schema.into_iter().map(Rc::new).collect_vec();
 
         Ok(db)
     }
 
-    pub fn read_entire_record(&self, pos: Position) -> Result<Record> {
-        self.seek_position(pos)?;
-        let payload_size = self.read_varint()?.value;
-        let row_id = self.read_varint()?.value;
-        let record_header = self.read_record_header(Position::Relative)?;
-        let mut values = Vec::<CellValue>::new();
-        for val in &record_header.headers {
-            values.push(self.read_record_cell(Position::Relative,val)?);
-        }
-        Ok(Record {
-            payload_size,
-            row_id,
-            values,
-            record_header,
-        })
-    }
+    // pub fn read_entire_record(&self, pos: Position) -> Result<Record> {
+    //     self.seek_position(pos)?;
+    //     let payload_size = self.read_varint()?.value;
+    //     let row_id = self.read_varint()?.value;
+    //     let record_header = self.read_record_header(Position::Relative)?;
+    //     let mut values = Vec::<CellValue>::new();
+    //     for val in &record_header.headers {
+    //         values.push(self.read_record_cell(Position::Relative,val)?);
+    //     }
+    //     Ok(Record {
+    //         payload_size,
+    //         row_id,
+    //         values,
+    //         record_header,
+    //     })
+    // }
 
-    pub fn read_record_header(&self, pos:Position) -> Result<RecordHeader> {
+    fn read_record_header(&self, pos: Position) -> Result<RecordHeader> {
+        self.seek_position(pos)?;
         let Varint { mut value, size } = self.read_varint()?;
         let header_size = value;
         value -= size as i64;
@@ -101,29 +103,23 @@ impl Database {
                 }
             });
         }
-        Ok(RecordHeader {
-            headers,
-            header_size
-
-
-        })
+        Ok(RecordHeader::new(headers, header_size))
     }
 
-    fn read_record(&self, start: i64) -> Result<Record> {
-        self.file.borrow_mut().seek(SeekFrom::Start(start as u64))?;
-        let payload_size = self.read_varint()?.value;
-        let row_id = self.read_varint()?.value;
+    pub fn read_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
+        self.seek_position(Position::new(page_number, pointer))?;
+        let payload_size = self.read_varint()?;
+        let row_id = self.read_varint()?;
+        let cell_header_size = payload_size.size + row_id.size;
         let record_header = self.read_record_header(Position::Relative)?;
-        let mut values = Vec::<CellValue>::new();
-        for val in &record_header.headers {
-            // values.push(self.read_cell(val)?);
-        }
-        Ok(Record {
-            payload_size,
-            row_id,
-            values,
+        Ok(Record::new(
+            payload_size.value,
+            row_id.value,
             record_header,
-        })
+            page_number,
+            pointer,
+            cell_header_size as i64,
+        ))
     }
 
     fn get_location(&self, page_number: u32, offset: u16) -> Result<i64> {
@@ -135,11 +131,12 @@ impl Database {
         }
 
         let page_start = match page_number {
-            1 => 0,
+            1 => 0, //100?
             num => (num - 1) * self.header.page_size as u32,
         };
         Ok((page_start + offset as u32) as i64)
     }
+
     pub fn read_table_page(&self, page_number: u32) -> Result<TablePage> {
         match self.read_page(page_number)? {
             Page::Table(t) => Ok(t),
@@ -163,12 +160,13 @@ impl Database {
 
     fn read_page(&self, page_number: u32) -> Result<Page> {
         let mut buffer = [0; 1];
-        let page_start: i64 = match page_number {
-            1 => 100,
-            num => (num - 1) * self.header.page_size as u32,
-        } as i64;
 
-        self.seek_read(page_start as u64, &mut buffer)?;
+        let offset = match page_number {
+            1 => 100,
+            _ => 0,
+        };
+        self.seek(page_number, offset)?;
+        self.read_exact(&mut buffer)?;
         let page_type = match buffer[0] {
             0x02 => PageType::IndexInterior,
             0x05 => PageType::TableInterior,
@@ -233,9 +231,10 @@ impl Database {
         })
     }
 
-    pub fn read_record_cell(&self, pos: Position,cell_type: &CellType) -> Result<CellValue> {
-        self.seek_position(pos)?;
-        return Ok(match cell_type {
+    pub fn read_record_cell(&self, record: &Record, index: usize) -> Result<CellValue> {
+        self.seek_position(record.get_cell_position(index))?;
+
+        return Ok(match &record.record_header.headers[index] {
             CellType::Null => CellValue::Null,
             CellType::Varint(size) => {
                 let mut buff = [0; 8];
@@ -315,26 +314,36 @@ impl Database {
     // }
     //
 
-    pub fn get_schema(&self) -> Vec<Rc<SqliteSchema>> {
+    pub fn get_schemas(&self) -> Vec<Rc<SqliteSchema>> {
         self.schema.clone()
     }
 
-    fn read_schema(&self) -> Result<Vec<SqliteSchema>> {
+    fn read_schemas(&self) -> Result<Vec<SqliteSchema>> {
         let page = self.read_table_page(1)?;
         let mut schemas: Vec<SqliteSchema> = Vec::new();
-
-        let TablePage::Leaf(page) = page else {bail!("sql schhemaa table must be a leaf page")};
+        let TablePage::Leaf(page) = page else {
+            bail!("sql schhemaa table must be a leaf page")
+        };
         for pointer in page.cell_pointers {
-            let mut record = self.read_entire_record(Position::new(1, pointer.1))?;
-            if record.record_header.headers.len() != 5 {
+            let record = self.read_record(pointer.0, pointer.1)?;
+            if dbg!(record.record_header.headers.len()) != 5 {
                 bail!("Schema table must have 5 fields");
             }
 
-            let CellValue::String(sql)= record.values.pop().expect("array is known size") else {bail!("sql must be a string field")};
-            let CellValue::Int(root_page)=  record.values.pop().expect("array is known size") else {bail!("root_page must be an int")};
-            let CellValue::String(table_name)=  record.values.pop().expect("array is known size") else {bail!("table_name must be a string field")};
-            let CellValue::String(name)=  record.values.pop().expect("array is known size") else {bail!("name must be a string")};
-            let schema = match record.values.pop().expect("array is known size") {
+            let CellValue::String(name) = self.read_record_cell(&record, 1)? else {
+                bail!("name must be a string")
+            };
+            let CellValue::String(table_name) = self.read_record_cell(&record, 2)? else {
+                bail!("table_name must be a string field")
+            };
+            let CellValue::Int(root_page) = self.read_record_cell(&record, 3)? else {
+                bail!("root_page must be an int")
+            };
+            let CellValue::String(sql) = self.read_record_cell(&record, 4)? else {
+                bail!("sql must be a string field")
+            };
+            println!("{sql}");
+            let schema = match self.read_record_cell(&record, 0)? {
                 CellValue::String(s) => match s.as_ref() {
                     "table" => {
                         let ast = match Parser::parse_sql(&DIALECT, &sql) {
@@ -355,7 +364,11 @@ impl Database {
                         if ast.len() != 1 {
                             bail!("table sqchema sql can only have 1 expression");
                         }
-                        let ast::Statement::CreateTable { columns, .. }  = ast.get(0).expect("item is 1 item long") else {bail!("create table statement expected")};
+                        let ast::Statement::CreateTable { columns, .. } =
+                            ast.get(0).expect("item is 1 item long")
+                        else {
+                            bail!("create table statement expected")
+                        };
                         let columns = columns
                             .iter()
                             .map(|f| {
@@ -398,20 +411,6 @@ impl Database {
         Ok(schemas)
     }
 
-    fn seek_position(&self, pos: Position) -> Result<()> {
-        match pos {
-            Position::Relative => (),
-            Position::Absolute {
-                page_number,
-                pointer,
-            } => {
-                self.file.borrow_mut().seek(SeekFrom::Start(
-                    self.get_location(page_number, pointer)? as u64,
-                ))?;
-            }
-        }
-        Ok(())
-    }
     pub fn read_u8(&self) -> Result<u8> {
         let mut buffer = [0; 1];
         self.read_exact(&mut buffer)?;
@@ -435,16 +434,21 @@ impl Database {
         Ok(u64::from_be_bytes(buffer))
     }
 
-    pub fn seek(&self, page_number: u32, offset: u16) -> Result<()> {
-        self.file.borrow_mut().seek(SeekFrom::Start(
-            self.get_location(page_number, offset)? as u64
-        ))?;
+    fn seek_position(&self, pos: Position) -> Result<()> {
+        match pos {
+            Position::Relative => (),
+            Position::Absolute {
+                page_number,
+                pointer,
+            } => self.seek(page_number, pointer)?,
+        }
         Ok(())
     }
 
-    fn seek_read(&self, offset: u64, buf: &mut [u8]) -> Result<()> {
-        self.file.borrow_mut().seek(SeekFrom::Start(offset))?;
-        self.file.borrow_mut().read_exact(buf)?;
+    pub fn seek(&self, page_number: u32, pointer: u16) -> Result<()> {
+        self.file.borrow_mut().seek(SeekFrom::Start(
+            self.get_location(page_number, pointer)? as u64
+        ))?;
         Ok(())
     }
 
