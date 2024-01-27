@@ -6,6 +6,7 @@ use crate::sqlite::{btree::TableBTree, schema::SqliteSchema};
 pub mod sqlite;
 
 fn main() -> Result<()> {
+
     let args = std::env::args().collect::<Vec<_>>();
     match args.len() {
         0 | 1 => bail!("Missing <database path> and <command>"),
@@ -45,10 +46,11 @@ fn main() -> Result<()> {
             print!("{}", names.join(" "));
         }
         ".schema" => {
+            // let tree = conn.get_tree("superheroes".into()).unwrap_or(Ok());
             let tree = conn.get_tree("superheroes".into())?;
-            println!("{:?}",tree.schema);
-            // 
-            // conn.print_column("superheroes".into(), "name".into())?;
+            println!("{:?}", tree.schema);
+            //
+            conn.print_column("apples".into(), "name".into())?;
             // conn.print_column("superheroes".into(), "".into())?;
             // println!("test");
             // println!("{:?}",tree);
@@ -64,18 +66,11 @@ fn main() -> Result<()> {
             // }
             // table.printstd();
         }
-        ".schema" => {
-            // let schema = dbg!(conn.get_schema()?);
-            // let mut table = Table::new();
-            // table.add_row(row!["Id", "Type", "Name", "R_Page"]);
-            // for sc in schema.iter() {
-            //     table.add_row(row![sc.row_id, sc.schema_type, sc.name, sc.root_page]);
-            // }
-            // table.printstd();
-        }
         _query => {
-            // let wow = sql_engine::query(query);
-            // let result = conn.query(query)?;
+            // c
+            // let wow = sql_engine::query(_query);
+            let result = conn.query(_query.trim());
+            println!("{:?}", result)
             // for r in result {
             //     println!(
             //         "{}",

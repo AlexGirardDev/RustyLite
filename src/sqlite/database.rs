@@ -326,7 +326,7 @@ impl Database {
         };
         for pointer in page.cell_pointers {
             let record = self.read_record(pointer.0, pointer.1)?;
-            if dbg!(record.record_header.headers.len()) != 5 {
+            if record.record_header.headers.len() != 5 {
                 bail!("Schema table must have 5 fields");
             }
 
@@ -342,7 +342,6 @@ impl Database {
             let CellValue::String(sql) = self.read_record_cell(&record, 4)? else {
                 bail!("sql must be a string field")
             };
-            println!("{sql}");
             let schema = match self.read_record_cell(&record, 0)? {
                 CellValue::String(s) => match s.as_ref() {
                     "table" => {

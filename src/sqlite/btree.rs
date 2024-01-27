@@ -36,7 +36,14 @@ impl TableNode {
     }
 
     pub fn cells<'a>(&'a self) -> Box<dyn Iterator<Item = &(u32, u16)> + 'a> {
-        Box::new(self.children.iter().map(|n| n.leaf_cells()).flatten())
+        match &self.page {
+            TablePage::Leaf(l) => {
+                Box::new(l.cell_pointers.iter())
+            }
+            TablePage::Interior(_) => {
+                Box::new(self.children.iter().map(|n| n.leaf_cells()).flatten())
+            }
+        }
     }
 
     pub fn new(page: TablePage, db: &Database) -> Result<TableNode> {
@@ -101,11 +108,11 @@ impl<'a> Iterator for RowReader<'a> {
     type Item = Result<ReaderRow<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let record = self.iter.next().map(|(page_number, pointer)| {
-                self.db.read_record(
-                    *page_number,
-                    *pointer)
-        })?.unwrap();
+        let record = self
+            .iter
+            .next()
+            .map(|(page_number, pointer)| self.db.read_record(*page_number, *pointer))?
+            .unwrap();
         Some(Ok(ReaderRow::new(&self.db, record, self.schema.clone())))
     }
 }
@@ -118,13 +125,16 @@ pub struct ReaderRow<'a> {
 
 impl<'a> ReaderRow<'a> {
     pub fn new(db: &'a Database, record: Record, schema: Rc<SqliteSchema>) -> Self {
-        // db.read_entire_record(pos)
         ReaderRow { record, schema, db }
     }
     pub fn read_column(&self, column_name: &str) -> Result<CellValue> {
         let SqliteSchema::Table(schema) = self.schema.as_ref() else {
             unreachable!("this has to be a table schema");
         };
+
+        if column_name == "id" {
+            return Ok(CellValue::Int(self.record.row_id));
+        }
 
         let (index, _) = schema
             .columns
@@ -133,12 +143,7 @@ impl<'a> ReaderRow<'a> {
             .find(|f| *f.1.name == *column_name)
             .unwrap();
 
-        // todo!()
-        // self.
-
-        let pos =self.record.get_cell_position(index);
-         
-        self.db.read_record_cell2(&self.record, index)
+        self.db.read_record_cell(&self.record, index)
         //
         // // self.db.read_record_cell(Position::Relative, cell_type)
     }
