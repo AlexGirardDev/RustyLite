@@ -1,13 +1,14 @@
 use anyhow::{bail, Ok, Result};
 use itertools::Itertools;
+use prettytable::Cell;
 use sqlparser::{
-    ast::{Expr, Ident},
+    ast::{BinaryOperator, Expr, Ident, Value},
     dialect::SQLiteDialect,
     parser::Parser,
 };
 use std::{rc::Rc, usize};
 
-use crate::sqlite::{schema::SqliteSchema, record::CellValue};
+use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
 
 use super::{
     btree::{RowReader, TableBTree},
@@ -36,7 +37,8 @@ impl Connection {
 
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
-        // println!("{:?}", ast);
+        eprintln!("Query: {}",sql.as_ref());
+        eprintln!("");
 
         let exp = match (ast.pop(), ast.pop()) {
             (Some(s), None) => s,
@@ -65,9 +67,7 @@ impl Connection {
             _ => bail!("currently only table sources are supported"),
         };
 
-
         let tree = self.get_tree(source_name)?;
-        // dbg!(&tree);
         let columns: Vec<String> = select
             .projection
             .iter()
@@ -78,15 +78,42 @@ impl Connection {
                 _ => bail!("only field names are currently supported in selects"),
             })
             .try_collect()?;
+        let clauses: Box<dyn Fn(&ReaderRow) -> Result<bool>> = match select.selection {
+            Some(Expr::BinaryOp { left, op, right }) => match (*left, *right) {
+                (Expr::Identifier(l), Expr::Value(Value::SingleQuotedString(r))) => {
+                    Connection::generate_clause(l.value, op, CellValue::String(r))?
+                }
+                _ => bail!("woops"),
+            },
+            _ => todo!(),
+        };
 
         for row in tree.row_reader(&self.db) {
             let row = row?;
-            let values: Vec<CellValue> = columns.iter().map(|f| row.read_column(f)).try_collect()?;
-            let wow = values.iter().map(|f|f.to_string()).join("|");
-            println!("{:?}", wow);
+            if clauses(&row)? {
+                continue;
+            }
+            let values: Vec<CellValue> =
+                columns.iter().map(|f| row.read_column(f)).try_collect()?;
+            println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
     }
+    fn generate_clause(
+        left: String,
+        op: BinaryOperator,
+        right: CellValue,
+    ) -> Result<Box<dyn Fn(&ReaderRow) -> Result<bool>>> {
+        Ok(Box::new(move |row: &ReaderRow| {
+            let left_value = row.read_column(&left)?;
+            Ok(match op {
+                BinaryOperator::Eq => left_value == right,
+                BinaryOperator::NotEq => left_value != right,
+                _ => bail!("invalid conditoin operator"),
+            })
+        }))
+    }
+
     pub fn get_tree(&self, table_name: String) -> Result<TableBTree> {
         let schema = &self.db.get_table_schema(table_name)?;
         let wow = TableBTree::new(&self.db, schema.clone())?;

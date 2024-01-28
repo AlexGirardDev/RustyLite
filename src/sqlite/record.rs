@@ -91,6 +91,17 @@ pub enum CellValue {
     Blob(Vec<u8>),
     String(String),
 }
+impl PartialEq for CellValue{
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
+            (Self::Float(l0), Self::Float(r0)) => l0 == r0,
+            (Self::Blob(l0), Self::Blob(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum CellType {
