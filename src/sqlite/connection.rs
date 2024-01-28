@@ -75,19 +75,12 @@ impl Connection {
                 _ => bail!("only field names are currently supported in selects"),
             })
             .try_collect()?;
-        let clauses: SqlRowClause= match select.selection {
-            Some(Expr::BinaryOp { left, op, right }) => match (*left, *right) {
-                (Expr::Identifier(l), Expr::Value(Value::SingleQuotedString(r))) => {
-                    Connection::generate_clause(l.value, op, CellValue::String(r))?
-                }
-                _ => bail!("woops"),
-            },
-            _ => todo!(),
-        };
+        let where_clause = Connection::generate_clause(select.selection)?;
 
         for row in tree.row_reader(&self.db) {
             let row = row?;
-            if clauses(&row)? {
+
+            if !where_clause(&row)? {
                 continue;
             }
             let values: Vec<CellValue> =
@@ -96,15 +89,25 @@ impl Connection {
         }
         Ok(())
     }
-    fn generate_clause(left: String, op: BinaryOperator, right: CellValue) -> Result<SqlRowClause> {
-        Ok(Box::new(move |row: &ReaderRow| {
-            let left_value = row.read_column(&left)?;
-            Ok(match op {
-                BinaryOperator::Eq => left_value == right,
-                BinaryOperator::NotEq => left_value != right,
-                _ => bail!("invalid conditoin operator"),
-            })
-        }))
+
+    fn generate_clause(selection: Option<Expr>) -> Result<SqlRowClause> {
+        Ok(match selection {
+            Some(Expr::BinaryOp { left, op, right }) => match (*left, *right) {
+                (Expr::Identifier(l), Expr::Value(Value::SingleQuotedString(r))) => {
+                    Box::new(move |row: &ReaderRow| {
+                        let left_value = row.read_column(&l.value)?;
+                        let right_value = CellValue::String(r.to_owned());
+                        Ok(match op {
+                            BinaryOperator::Eq => left_value == right_value,
+                            BinaryOperator::NotEq => left_value != right_value,
+                            _ => bail!("invalid conditoin operator"),
+                        })
+                    })
+                }
+                _ => bail!("this type of where clause is not currently supported"),
+            },
+            _ => Box::new(|_| Ok(true)),
+        })
     }
 
     pub fn get_tree(&self, table_name: String) -> Result<TableBTree> {
