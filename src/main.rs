@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
 
-use crate::sqlite::{btree::TableBTree, schema::SqliteSchema};
+use crate::sqlite::{schema::SqliteSchema};
 
 pub mod sqlite;
 
@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         _query => {
             // c
             // let wow = sql_engine::query(_query);
-            let result = conn.query(_query.trim());
+            let _result = conn.query(_query.trim());
             // println!("{:?}", result)
             // for r in result {
             //     println!(

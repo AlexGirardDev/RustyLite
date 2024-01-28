@@ -1,5 +1,5 @@
 use self::{
-    index_interior::IndexInteriorPage, index_leaf::IndexLeafPage, page_header::PageHeader,
+    index_interior::IndexInteriorPage, index_leaf::IndexLeafPage,
     table_interior::TableInteriorPage, table_leaf::TableLeafPage,
 };
 

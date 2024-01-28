@@ -1,9 +1,9 @@
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
-use nom::Offset;
+
 use sqlparser::{
     ast,
-    dialect::{PostgreSqlDialect, SQLiteDialect},
+    dialect::{SQLiteDialect},
     parser::{Parser, ParserError},
 };
 use std::{
@@ -19,8 +19,6 @@ use super::{
     column::Column,
     connection::DatabaseHeader,
     page::{
-        index_interior::IndexInteriorPage,
-        index_leaf::IndexLeafPage,
         page_header::PageType,
         table_interior::{TableInteriorCell, TableInteriorPage},
         IndexPage, Page, TablePage,
@@ -183,7 +181,7 @@ impl Database {
         self.read_exact(&mut buffer)?;
         let fragmented_free_bytes = u8::from_be_bytes(buffer);
 
-        let right_cell = match page_type {
+        let _right_cell = match page_type {
             PageType::IndexInterior | PageType::TableInterior => self.read_u32()?,
             _ => 0,
         };

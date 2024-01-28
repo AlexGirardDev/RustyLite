@@ -1,6 +1,6 @@
-use std::{default, fmt};
+use std::{fmt};
 
-use sqlparser::ast::Values;
+
 
 use super::database::Position;
 
@@ -56,8 +56,8 @@ impl Record {
             .iter()
             .take(cell_index)
             .map(|f| match f {
-                CellType::Null => 0 as i64,
-                CellType::Float64 => 8 as i64,
+                CellType::Null => 0_i64,
+                CellType::Float64 => 8_i64,
                 CellType::Blob(s) => *s as i64,
                 CellType::String(s) => *s as i64,
                 CellType::Varint(s) => *s as i64,

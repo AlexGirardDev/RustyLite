@@ -1,6 +1,6 @@
 use anyhow::{bail, Ok, Result};
 use itertools::Itertools;
-use prettytable::Cell;
+
 use sqlparser::{
     ast::{BinaryOperator, Expr, Ident, Value},
     dialect::SQLiteDialect,
@@ -11,7 +11,7 @@ use std::{rc::Rc, usize};
 use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
 
 use super::{
-    btree::{RowReader, TableBTree},
+    btree::{TableBTree},
     database::Database,
 };
 
@@ -38,7 +38,7 @@ impl Connection {
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
         eprintln!("Query: {}",sql.as_ref());
-        eprintln!("");
+        eprintln!();
 
         let exp = match (ast.pop(), ast.pop()) {
             (Some(s), None) => s,

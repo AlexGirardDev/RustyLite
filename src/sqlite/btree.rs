@@ -2,13 +2,13 @@
 
 use std::rc::Rc;
 
-use crate::sqlite::schema;
+
 
 use super::{
-    database::{Database, Position},
+    database::{Database},
     page::{table_interior::TableInteriorPage, TablePage},
-    record::{CellValue, Record, RecordHeader},
-    schema::{table_schema::TableSchema, SqliteSchema},
+    record::{CellValue, Record},
+    schema::{SqliteSchema},
 };
 use anyhow::{bail, Result};
 
@@ -28,7 +28,7 @@ pub struct TableNode {
 
 static EMPTY_VEC: Vec<(u32, u16)> = Vec::new();
 impl TableNode {
-    fn leaf_cells<'a>(&'a self) -> &'a Vec<(u32, u16)> {
+    fn leaf_cells(&self) -> &Vec<(u32, u16)> {
         match &self.page {
             TablePage::Leaf(l) => &l.cell_pointers,
             TablePage::Interior(_) => &EMPTY_VEC,
@@ -41,7 +41,7 @@ impl TableNode {
                 Box::new(l.cell_pointers.iter())
             }
             TablePage::Interior(_) => {
-                Box::new(self.children.iter().map(|n| n.leaf_cells()).flatten())
+                Box::new(self.children.iter().flat_map(|n| n.leaf_cells()))
             }
         }
     }
@@ -85,7 +85,7 @@ impl TableBTree {
     }
 
     pub fn row_reader<'a>(&'a self, db: &'a Database) -> RowReader {
-        RowReader::new(&self, &db)
+        RowReader::new(self, db)
     }
 }
 
@@ -113,7 +113,7 @@ impl<'a> Iterator for RowReader<'a> {
             .next()
             .map(|(page_number, pointer)| self.db.read_record(*page_number, *pointer))?
             .unwrap();
-        Some(Ok(ReaderRow::new(&self.db, record, self.schema.clone())))
+        Some(Ok(ReaderRow::new(self.db, record, self.schema.clone())))
     }
 }
 
