@@ -6,7 +6,6 @@ use super::database::Position;
 
 #[derive(Debug, Default)]
 pub struct Record {
-    payload_size: i64,
     pub row_id: i64,
     pub record_header: RecordHeader,
     page_number: u32,
@@ -31,7 +30,6 @@ impl RecordHeader {
 
 impl Record {
     pub fn new(
-        payload_size: i64,
         row_id: i64,
         record_header: RecordHeader,
         page_number: u32,
@@ -39,13 +37,11 @@ impl Record {
         cell_header_size: i64,
     ) -> Self {
         Self {
-            payload_size,
             row_id,
             record_header,
             page_number,
             pointer,
-            cell_header_size,
-            ..Default::default()
+            cell_header_size
         }
     }
 

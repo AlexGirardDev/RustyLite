@@ -5,14 +5,12 @@ use std::rc::Rc;
 
 
 use super::{
-    database::{Database},
+    database::Database,
     page::{table_interior::TableInteriorPage, TablePage},
     record::{CellValue, Record},
-    schema::{SqliteSchema},
+    schema::SqliteSchema,
 };
 use anyhow::{bail, Result};
-
-pub mod btree;
 
 #[derive(Debug)]
 pub struct TableBTree {

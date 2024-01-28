@@ -27,8 +27,6 @@ impl TableInteriorCell {
         let row_id = db.read_varint()?.value;
 
         Ok(TableInteriorCell {
-            page_number,
-            offset,
             left_child_page_number: left_child,
             row_id,
         })
@@ -44,8 +42,6 @@ impl TableInteriorCell {
 
 #[derive(Debug)]
 pub struct TableInteriorCell {
-    page_number: u32,
-    offset: u16,
     pub left_child_page_number: u32,
     pub row_id: i64,
 }

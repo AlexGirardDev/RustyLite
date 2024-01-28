@@ -111,7 +111,6 @@ impl Database {
         let cell_header_size = payload_size.size + row_id.size;
         let record_header = self.read_record_header(Position::Relative)?;
         Ok(Record::new(
-            payload_size.value,
             row_id.value,
             record_header,
             page_number,
@@ -121,7 +120,7 @@ impl Database {
     }
 
     fn get_location(&self, page_number: u32, offset: u16) -> Result<i64> {
-        if page_number <= 0 {
+        if page_number == 0 {
             bail!("pages start at index 1");
         }
         if offset > self.header.page_size {
@@ -237,7 +236,7 @@ impl Database {
             CellType::Varint(size) => {
                 let mut buff = [0; 8];
                 let size = *size as usize;
-                if size <= 0 {
+                if size == 0 {
                     CellValue::Int(0)
                 } else {
                     self.read_exact(&mut buff[8 - size..8])?;
@@ -246,17 +245,17 @@ impl Database {
             }
             CellType::Float64 => {
                 let mut buff = [0; 8];
-                self.file.borrow_mut().read(&mut buff).unwrap();
+                self.file.borrow_mut().read_exact(&mut buff).unwrap();
                 CellValue::Float(f64::from_be_bytes(buff))
             }
             CellType::Blob(len) => {
                 let mut data = vec![0u8; *len as usize];
-                self.file.borrow_mut().read(&mut data).unwrap();
+                self.file.borrow_mut().read_exact(&mut data).unwrap();
                 CellValue::Blob(data)
             }
             CellType::String(len) => {
                 let mut data = vec![0u8; *len as usize];
-                self.file.borrow_mut().read(&mut data).unwrap();
+                self.file.borrow_mut().read_exact(&mut data).unwrap();
                 CellValue::String(String::from_utf8(data)?)
             }
         });

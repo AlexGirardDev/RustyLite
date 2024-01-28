@@ -6,14 +6,11 @@ use sqlparser::{
     dialect::SQLiteDialect,
     parser::Parser,
 };
-use std::{rc::Rc, usize};
+use std::rc::Rc;
 
 use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
 
-use super::{
-    btree::{TableBTree},
-    database::Database,
-};
+use super::{btree::TableBTree, database::Database};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
 pub struct Connection {
@@ -37,7 +34,7 @@ impl Connection {
 
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
-        eprintln!("Query: {}",sql.as_ref());
+        eprintln!("Query: {}", sql.as_ref());
         eprintln!();
 
         let exp = match (ast.pop(), ast.pop()) {
@@ -78,7 +75,7 @@ impl Connection {
                 _ => bail!("only field names are currently supported in selects"),
             })
             .try_collect()?;
-        let clauses: Box<dyn Fn(&ReaderRow) -> Result<bool>> = match select.selection {
+        let clauses: SqlRowClause= match select.selection {
             Some(Expr::BinaryOp { left, op, right }) => match (*left, *right) {
                 (Expr::Identifier(l), Expr::Value(Value::SingleQuotedString(r))) => {
                     Connection::generate_clause(l.value, op, CellValue::String(r))?
@@ -99,11 +96,7 @@ impl Connection {
         }
         Ok(())
     }
-    fn generate_clause(
-        left: String,
-        op: BinaryOperator,
-        right: CellValue,
-    ) -> Result<Box<dyn Fn(&ReaderRow) -> Result<bool>>> {
+    fn generate_clause(left: String, op: BinaryOperator, right: CellValue) -> Result<SqlRowClause> {
         Ok(Box::new(move |row: &ReaderRow| {
             let left_value = row.read_column(&left)?;
             Ok(match op {
@@ -478,6 +471,8 @@ impl Connection {
     // }
 }
 
+type SqlRowClause = Box<dyn Fn(&ReaderRow) -> Result<bool>>;
+
 #[derive(Debug)]
 pub struct DatabaseHeader {
     pub page_size: u16,
@@ -492,27 +487,8 @@ pub enum TextEncoding {
     Utf16be,
 }
 
-struct Varint {
-    value: i64,
-    size: u8,
-}
-
 #[derive(Debug)]
 pub enum SelectCell {
     NamedColumn(String),
     TotalRowCount,
-    // CountByColumn(String),
-    // Sum(String),
-    // Avg(String),
 }
-#[derive(Debug)]
-struct InteriorCell {
-    pub left_child: usize,
-    pub row_id: i64,
-}
-
-// struct CellLocation {
-//     page: usize,
-//     offset: usize,
-// }
-//
