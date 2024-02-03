@@ -69,8 +69,8 @@ fn main() -> Result<()> {
         _query => {
             // c
             // let wow = sql_engine::query(_query);
-            let _result = conn.query(_query.trim());
-            // println!("{:?}", result)
+            let result = conn.query(_query.trim());
+            println!("{:?}", result)
             // for r in result {
             //     println!(
             //         "{}",

@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
 
-use super::{btree::TableBTree, database::Database};
+use super::{btree::TableBTree, database::Database, sql::sql_engine::{Query, self}};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
 pub struct Connection {
@@ -31,10 +31,21 @@ impl Connection {
     pub fn get_header(&self) -> &DatabaseHeader {
         &self.db.header
     }
+    pub fn execute_query(&self, sql: impl AsRef<str>)-> Result<()> {
+        let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
+        let query = 
+
+
+    }
+
+
 
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
+        
+
         eprintln!("Query: {}", sql.as_ref());
+        eprintln!("ast: {:?}", ast);
         eprintln!();
 
         let exp = match (ast.pop(), ast.pop()) {
@@ -65,6 +76,8 @@ impl Connection {
         };
 
         let tree = self.get_tree(source_name)?;
+        // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
+
         let columns: Vec<String> = select
             .projection
             .iter()
@@ -72,6 +85,7 @@ impl Connection {
                 sqlparser::ast::SelectItem::UnnamedExpr(Expr::Identifier(Ident {
                     value, ..
                 })) => Ok(value.to_owned()),
+
                 _ => bail!("only field names are currently supported in selects"),
             })
             .try_collect()?;
@@ -109,7 +123,6 @@ impl Connection {
             _ => Box::new(|_| Ok(true)),
         })
     }
-
 
     pub fn get_tree(&self, table_name: String) -> Result<TableBTree> {
         let schema = &self.db.get_table_schema(table_name)?;
