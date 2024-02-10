@@ -1,27 +1,40 @@
-use std::env::args;
-
 //Select count()
 use anyhow::{bail, Error, Ok, Result};
 
 use itertools::Itertools;
+use sqlparser::ast;
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, Ident, Select, SelectItem, SetExpr, Statement,
 };
 
 use crate::sqlite::record::CellValue;
-
+#[derive(Debug)]
 pub enum Query {
     Select(SelectQuery),
 }
-
 impl TryFrom<&Statement> for Query {
-    type Error;
+    type Error = Error;
 
-    fn try_from(value: &Statement) -> std::result::Result<Self, Self::Error> {
-        todo!()
+    fn try_from(value: &Statement) -> Result<Self> {
+        match value {
+            Statement::Query(q) => Ok(Query::Select(q.as_ref().try_into()?)),
+            s => bail!("{} is not currently supported", s),
+        }
     }
 }
 
+impl TryFrom<&ast::Query> for SelectQuery {
+    type Error = Error;
+
+    fn try_from(value: &ast::Query) -> Result<Self> {
+        match value.body.as_ref() {
+            sqlparser::ast::SetExpr::Select(select) => Ok(SelectQuery::new(select)?),
+            e => bail!("{} queries are not currently supported", e),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct SelectQuery {
     selections: Vec<Selection>,
     sources: Vec<Source>,
@@ -29,10 +42,9 @@ pub struct SelectQuery {
 }
 
 impl SelectQuery {
-    pub fn new(select: Select) -> Result<Self> {
+    pub fn new(select: &Select) -> Result<Self> {
         let selections: Vec<Selection> = select
             .projection
-
             .iter()
             .map(|m| m.try_into())
             .try_collect()?;
@@ -78,7 +90,7 @@ impl Query {
 
         Ok(match exp {
             Statement::Query(q) => match *q.body {
-                SetExpr::Select(select) => Query::Select(SelectQuery::new(*select)?),
+                SetExpr::Select(select) => Query::Select(SelectQuery::new(&select)?),
                 e => bail!("{} queries are not currently supported", e),
             },
             q => bail!("{} queries are not currently supported", q),
@@ -86,6 +98,7 @@ impl Query {
     }
 }
 
+#[derive(Debug)]
 pub enum Selection {
     Identifier(String),
     AggFn(AggregateFunction),
@@ -112,11 +125,13 @@ impl TryFrom<&SelectItem> for Selection {
         })
     }
 }
+#[derive(Debug)]
 pub enum AggregateFunction {
     Count,
     // Sum(Identefier)
 }
 
+#[derive(Debug)]
 pub enum Source {
     Table(String),
 }
@@ -157,12 +172,14 @@ impl TryFrom<&Expr> for Expression {
     }
 }
 
+#[derive(Debug)]
 pub enum Expression {
     InfixExpression(Box<Expression>, Operator, Box<Expression>),
     Literal(CellValue),
     Identifier(String),
 }
 
+#[derive(Debug)]
 pub enum Operator {
     Equal,
     NotEqual,

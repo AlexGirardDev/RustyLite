@@ -10,7 +10,11 @@ use std::rc::Rc;
 
 use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
 
-use super::{btree::TableBTree, database::Database, sql::sql_engine::{Query, self}};
+use super::{
+    btree::TableBTree,
+    database::Database,
+    sql::sql_engine::{self, Query},
+};
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
 pub struct Connection {
@@ -31,18 +35,24 @@ impl Connection {
     pub fn get_header(&self) -> &DatabaseHeader {
         &self.db.header
     }
-    pub fn execute_query(&self, sql: impl AsRef<str>)-> Result<()> {
-        let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
-        let query = 
 
+    pub fn execute_query(&self, sql: impl AsRef<str>) -> Result<()> {
+        let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
+        let exp: Query = match (ast.pop(), ast.pop()) {
+            (Some(s), None) => (&s).try_into()?,
+            _ => bail!("only a single expression is currently supported"),
+        };
+
+
+
+
+
+        todo!()
 
     }
 
-
-
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
-        
 
         eprintln!("Query: {}", sql.as_ref());
         eprintln!("ast: {:?}", ast);
@@ -76,6 +86,7 @@ impl Connection {
         };
 
         let tree = self.get_tree(source_name)?;
+        dbg!(&tree);
         // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
 
         let columns: Vec<String> = select

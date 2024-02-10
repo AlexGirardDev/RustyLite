@@ -1,12 +1,11 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
 
-use crate::sqlite::{schema::SqliteSchema};
+use crate::sqlite::schema::SqliteSchema;
 
 pub mod sqlite;
 
 fn main() -> Result<()> {
-
     let args = std::env::args().collect::<Vec<_>>();
     match args.len() {
         0 | 1 => bail!("Missing <database path> and <command>"),
@@ -65,8 +64,8 @@ fn main() -> Result<()> {
             //     table.add_row(row![sc.row_id, sc.schema_type, sc.name, sc.root_page]);
             // }
             // table.printstd();
-        }
-        _query => {
+      }
+       _query => {
             // c
             // let wow = sql_engine::query(_query);
             let result = conn.query(_query.trim());

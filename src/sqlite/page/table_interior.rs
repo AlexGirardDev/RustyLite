@@ -23,6 +23,7 @@ impl TableInteriorPage {
 impl TableInteriorCell {
     pub fn read_cell(page_number: u32, offset: u16, db: &Database) -> Result<Self> {
         db.seek(page_number, offset)?;
+
         let left_child = db.read_u32()?;
         let row_id = db.read_varint()?.value;
 

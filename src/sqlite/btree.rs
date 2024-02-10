@@ -57,6 +57,20 @@ impl TableNode {
             }
         })
     }
+
+     fn get_leaf_by_id(&self, row_id:u64)->Result<()>{
+
+        // self.children.iter().
+
+        todo!()
+
+        //i need to traverse the btree and find the cell  for the betree i need, this will likely
+        //need to be recursive but maybe i can just do it with select manay
+
+
+
+
+    }
 }
 
 impl TableBTree {
@@ -85,6 +99,13 @@ impl TableBTree {
     pub fn row_reader<'a>(&'a self, db: &'a Database) -> RowReader {
         RowReader::new(self, db)
     }
+
+    pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> ReaderRow {
+
+
+        todo!()
+    }
+
 }
 
 pub struct RowReader<'a> {
