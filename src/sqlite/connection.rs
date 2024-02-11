@@ -8,12 +8,14 @@ use sqlparser::{
 };
 use std::rc::Rc;
 
-use crate::sqlite::{btree::ReaderRow, record::CellValue, schema::SqliteSchema};
+use crate::sqlite::{
+    btree::TableRow, record::CellValue, schema::SqliteSchema, sql::sql_engine::Operator,
+};
 
 use super::{
     btree::TableBTree,
     database::Database,
-    sql::sql_engine::{self, Query},
+    sql::sql_engine::{self, Expression, Object, Query},
 };
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
@@ -43,12 +45,72 @@ impl Connection {
             _ => bail!("only a single expression is currently supported"),
         };
 
+        let Query::Select(select) = exp else {bail!("ruh roh")};
 
+        if select.sources.len() != 1 {
+            bail!("only a single source is currently supported")
+        }
+        let source_name = match &select.sources[0] {
+            sql_engine::Source::Table(t) => t.to_owned(),
+        };
 
+        let tree = self.get_tree(source_name)?;
+        let columns: Vec<String> = select
+            .selections
+            .iter()
+            .map(|sel_item| match sel_item {
+                sql_engine::Selection::Identifier(i) => i.to_owned(),
+                sql_engine::Selection::AggFn(agg) => todo!("deal with agg"),
+            })
+            .collect_vec();
 
+        for row in tree.row_reader(&self.db) {
+            let row = row?;
 
+            let values: Vec<CellValue> =
+                columns.iter().map(|f| row.read_column(f)).try_collect()?;
+            println!("{}", values.iter().map(|f| f.to_string()).join("|"));
+        }
         todo!()
+    }
+    fn evalute_exp(row: &TableRow, exp: &Expression) -> Result<Object> {
+        //i'm not dealing with precedence at all here,
+        //this is just a hack to get where clauses mostly working for now
+        match exp {
+            Expression::InfixExpression(left, op, right) => {
+                let l = Connection::evalute_exp(row, &left)?;
+                let r = Connection::evalute_exp(row, &right)?;
+                let result = match (l, op, r) {
+                    (Object::Bool(l), Operator::Equal, Object::Bool(r)) => l == r,
+                    (Object::Bool(l), Operator::NotEqual, Object::Bool(r)) => l != r,
+                    (Object::Bool(l), Operator::And, Object::Bool(r)) => l && r,
+                    (Object::Bool(l), Operator::Or, Object::Bool(r)) => l || r,
 
+                    (Object::String(l), Operator::Equal, Object::String(r)) => l == r,
+                    (Object::String(l), Operator::NotEqual, Object::String(r)) => l != r,
+                    (l, ex, r) => bail!(
+                        "invalid operation, cannot use {:?} with {:?} and {:?}",
+                        ex,
+                        l,
+                        r
+                    ),
+                };
+
+                Ok(Object::Bool(result))
+            }
+            Expression::Literal(l) => Ok(Object::String(l)),
+            Expression::Identifier(i) => {
+                let value = row.read_column(i)?;
+                Ok(match value {
+                    CellValue::Int(i) => i.to_string(),
+                    CellValue::Float(f) => f.to_string(),
+                    CellValue::Blob(_) => f.to_stringtodo!(),
+                    CellValue::String(_) => todo!(),
+                    CellValue::Null => String::from("Null"),
+                })
+            }
+                ,
+        }
     }
 
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
@@ -119,7 +181,7 @@ impl Connection {
         Ok(match selection {
             Some(Expr::BinaryOp { left, op, right }) => match (*left, *right) {
                 (Expr::Identifier(l), Expr::Value(Value::SingleQuotedString(r))) => {
-                    Box::new(move |row: &ReaderRow| {
+                    Box::new(move |row: &TableRow| {
                         let left_value = row.read_column(&l.value)?;
                         let right_value = CellValue::String(r.to_owned());
                         Ok(match op {
@@ -499,7 +561,7 @@ impl Connection {
     // }
 }
 
-type SqlRowClause = Box<dyn Fn(&ReaderRow) -> Result<bool>>;
+type SqlRowClause = Box<dyn Fn(&TableRow) -> Result<bool>>;
 
 #[derive(Debug)]
 pub struct DatabaseHeader {

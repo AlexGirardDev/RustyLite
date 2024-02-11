@@ -104,6 +104,13 @@ impl Database {
         Ok(RecordHeader::new(headers, header_size))
     }
 
+    pub fn read_cell_row_id(&self, page_number: u32, pointer: u16) -> Result<i64> {
+        self.seek_position(Position::new(page_number, pointer))?;
+        let payload_size = self.read_varint()?;
+        let row_id = self.read_varint()?;
+        Ok(row_id.value)
+    }
+
     pub fn read_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
         self.seek_position(Position::new(page_number, pointer))?;
         let payload_size = self.read_varint()?;
@@ -208,12 +215,17 @@ impl Database {
             //     page_number,
             //     cell_pointers,
             // })),
-            PageType::TableInterior => Page::Table(TablePage::Interior(TableInteriorPage {
+            PageType::TableInterior => {
+
+                let cells = TableInteriorPage::read_cells(self, cell_pointers)?;
+
+
+                Page::Table(TablePage::Interior(TableInteriorPage {
                 header,
-                // right_cell,
                 page_number,
-                cell_pointers,
-            })),
+                cells
+            }))
+            },
             // PageType::IndexLeaf => Page::Index(IndexPage::Leaf(IndexLeafPage {
             //     header,
             //     page_number,

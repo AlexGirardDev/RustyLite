@@ -58,19 +58,22 @@ impl TableNode {
         })
     }
 
-     fn get_leaf_by_id(&self, row_id:u64)->Result<()>{
-
-        // self.children.iter().
-
-        todo!()
-
-        //i need to traverse the btree and find the cell  for the betree i need, this will likely
-        //need to be recursive but maybe i can just do it with select manay
-
-
-
-
-    }
+    //  fn find_leaf_by_row_id(&self, row_id:u64)->Result<()>{
+    //     match &self.page {
+    //         TablePage::Leaf(l) => {
+    //
+    //
+    //
+    //         },
+    //
+    //         TablePage::Interior(_) => todo!(),
+    //     }
+    //     todo!()
+    //
+    //
+    //
+    //
+    // }
 }
 
 impl TableBTree {
@@ -87,8 +90,7 @@ impl TableBTree {
 
     fn get_child_pages(db: &Database, page: &TableInteriorPage) -> Result<Vec<TableNode>> {
         let mut result = Vec::new();
-        let cells = page.read_cells(db)?;
-        for cell in cells {
+        for cell in &page.cells {
             let page = db.read_table_page(cell.left_child_page_number)?;
             let node = TableNode::new(page, db)?;
             result.push(node);
@@ -100,7 +102,7 @@ impl TableBTree {
         RowReader::new(self, db)
     }
 
-    pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> ReaderRow {
+    pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> TableRow {
 
 
         todo!()
@@ -124,7 +126,7 @@ impl<'a> RowReader<'a> {
 }
 
 impl<'a> Iterator for RowReader<'a> {
-    type Item = Result<ReaderRow<'a>>;
+    type Item = Result<TableRow<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let record = self
@@ -132,19 +134,19 @@ impl<'a> Iterator for RowReader<'a> {
             .next()
             .map(|(page_number, pointer)| self.db.read_record(*page_number, *pointer))?
             .unwrap();
-        Some(Ok(ReaderRow::new(self.db, record, self.schema.clone())))
+        Some(Ok(TableRow::new(self.db, record, self.schema.clone())))
     }
 }
 
-pub struct ReaderRow<'a> {
+pub struct TableRow<'a> {
     record: Record,
     schema: Rc<SqliteSchema>,
     db: &'a Database,
 }
 
-impl<'a> ReaderRow<'a> {
+impl<'a> TableRow<'a> {
     pub fn new(db: &'a Database, record: Record, schema: Rc<SqliteSchema>) -> Self {
-        ReaderRow { record, schema, db }
+        TableRow { record, schema, db }
     }
     pub fn read_column(&self, column_name: &str) -> Result<CellValue> {
         let SqliteSchema::Table(schema) = self.schema.as_ref() else {

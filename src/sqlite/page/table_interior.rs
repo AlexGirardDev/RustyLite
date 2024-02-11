@@ -7,12 +7,13 @@ use anyhow::Result;
 pub struct TableInteriorPage{
     pub page_number: u32,
     pub header: PageHeader,
-    pub cell_pointers: Vec<(u32,u16)>,
+    // pub cell_pointers: Vec<(u32,u16)>,
+    pub cells: Vec<TableInteriorCell>,
 }
 
 impl TableInteriorPage {
-    pub fn read_cells(&self, db: &Database) -> Result<Vec<TableInteriorCell>> {
-        self.cell_pointers
+    pub fn read_cells(db: &Database, cell_pointers: Vec<(u32,u16)>) -> Result<Vec<TableInteriorCell>> {
+        cell_pointers
             .iter()
             .map(|&offset| TableInteriorCell::read_cell(offset.0, offset.1, db))
             .collect() // This will automatically collect into Result<Vec<TableInteriorCell>, Error>

@@ -36,9 +36,9 @@ impl TryFrom<&ast::Query> for SelectQuery {
 
 #[derive(Debug)]
 pub struct SelectQuery {
-    selections: Vec<Selection>,
-    sources: Vec<Source>,
-    clause: Option<Expression>,
+    pub selections: Vec<Selection>,
+    pub sources: Vec<Source>,
+    pub clause: Option<Expression>,
 }
 
 impl SelectQuery {
@@ -177,6 +177,11 @@ pub enum Expression {
     InfixExpression(Box<Expression>, Operator, Box<Expression>),
     Literal(CellValue),
     Identifier(String),
+}
+##[derive(Debug)]
+pub enum Object{
+    Bool(bool),
+    String(String)
 }
 
 #[derive(Debug)]
