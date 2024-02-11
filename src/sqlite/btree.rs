@@ -25,7 +25,6 @@ pub struct TableNode {
     pub children: Vec<TableNode>,
 }
 
-static EMPTY_VEC: Vec<(u32, u16)> = Vec::new();
 impl TableNode {
     pub fn cells<'a>(&'a self) -> Box<dyn Iterator<Item = &(u32, u16)> + 'a> {
         match &self.page {
@@ -47,23 +46,6 @@ impl TableNode {
             }
         })
     }
-
-    //  fn find_leaf_by_row_id(&self, row_id:u64)->Result<()>{
-    //     match &self.page {
-    //         TablePage::Leaf(l) => {
-    //
-    //
-    //
-    //         },
-    //
-    //         TablePage::Interior(_) => todo!(),
-    //     }
-    //     todo!()
-    //
-    //
-    //
-    //
-    // }
 }
 
 impl TableBTree {
@@ -92,9 +74,6 @@ impl TableBTree {
         RowReader::new(self, db)
     }
 
-    pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> TableRow {
-        todo!()
-    }
     pub fn pretty_print(&self) -> Result<()> {
         let config = PrintConfig {
             leaf: Style {
@@ -118,7 +97,7 @@ impl TreeItem for TableNode {
     fn write_self<W: std::io::Write>(
         &self,
         f: &mut W,
-        style: &ptree::Style,
+        _: &ptree::Style,
     ) -> std::io::Result<()> {
         match &self.page {
             TablePage::Leaf(leaf) => {

@@ -1,6 +1,5 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
-use sqlparser::keywords::SCHEMA;
 
 use crate::sqlite::schema::SqliteSchema;
 
