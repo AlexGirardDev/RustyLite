@@ -1,20 +1,32 @@
-use std::rc::Rc;
+use std::{fmt, rc::Rc};
 
 use sqlparser::ast::DataType;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Column {
     pub type_affinity: TypeAffinity,
     pub name: Rc<str>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum TypeAffinity {
     Text,
     Numeric,
     Int,
     Real,
     Blob,
+}
+
+impl fmt::Display for TypeAffinity {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TypeAffinity::Text => write!(f, "TEXT"),
+            TypeAffinity::Numeric => write!(f, "NUM"),
+            TypeAffinity::Int => write!(f, "INT"),
+            TypeAffinity::Real => write!(f, "REAL"),
+            TypeAffinity::Blob => write!(f, "BLOB"),
+        }
+    }
 }
 
 impl From<&DataType> for TypeAffinity {

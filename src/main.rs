@@ -1,5 +1,6 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
+use sqlparser::keywords::SCHEMA;
 
 use crate::sqlite::schema::SqliteSchema;
 
@@ -45,30 +46,24 @@ fn main() -> Result<()> {
             print!("{}", names.join(" "));
         }
         ".schema" => {
-            // let tree = conn.get_tree("superheroes".into()).unwrap_or(Ok());
-            let tree = conn.get_tree("superheroes".into())?;
-            println!("{:?}", tree.schema);
-            //
-            conn.print_column("apples".into(), "name".into())?;
-            // conn.print_column("superheroes".into(), "".into())?;
-            // println!("test");
-            // println!("{:?}",tree);
-            // println!("{:?}", tree);
-            // for leaf in TableBTree::get_leaf_cells(&tree.root_node) {
-            //     println!("{} - {}", leaf.page_number, leaf.offset);
-            // }
-            // let schema = dbg!(conn.get_schema()?);
-            // let mut table = Table::new();
-            // table.add_row(row!["Id", "Type", "Name", "R_Page"]);
-            // for sc in schema.iter() {
-            //     table.add_row(row![sc.row_id, sc.schema_type, sc.name, sc.root_page]);
-            // }
-            // table.printstd();
-      }
-       _query => {
+            for schema in conn.get_schema() {
+                match schema.as_ref() {
+                    SqliteSchema::Table(table) => {
+                        println!("Table: {}", table.name);
+                        for col in &table.columns {
+                            println!("{:15} - {} ", col.name, col.type_affinity);
+                        }
+                    }
+                    SqliteSchema::Index(_) => {
+                        todo!()
+                    }
+                };
+            }
+        }
+        _query => {
             // c
             // let wow = sql_engine::query(_query);
-            let result = conn.query(_query.trim());
+            let result = conn.execute_query(_query.trim());
             println!("{:?}", result)
             // for r in result {
             //     println!(

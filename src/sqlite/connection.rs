@@ -64,22 +64,31 @@ impl Connection {
             })
             .collect_vec();
 
+
         for row in tree.row_reader(&self.db) {
             let row = row?;
+            if let Some(expression) = &select.clause {
+                match Connection::evalute_exp(&row, expression)? {
+                    Object::Bool(false) => continue,
+                    Object::Bool(true) => (),
+                    _ => bail!("where clause must resolve to bool"),
+                }
+            }
 
             let values: Vec<CellValue> =
                 columns.iter().map(|f| row.read_column(f)).try_collect()?;
+
             println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
-        todo!()
+        Ok(())
     }
     fn evalute_exp(row: &TableRow, exp: &Expression) -> Result<Object> {
         //i'm not dealing with precedence at all here,
         //this is just a hack to get where clauses mostly working for now
         match exp {
             Expression::InfixExpression(left, op, right) => {
-                let l = Connection::evalute_exp(row, &left)?;
-                let r = Connection::evalute_exp(row, &right)?;
+                let l = Connection::evalute_exp(row, left)?;
+                let r = Connection::evalute_exp(row, right)?;
                 let result = match (l, op, r) {
                     (Object::Bool(l), Operator::Equal, Object::Bool(r)) => l == r,
                     (Object::Bool(l), Operator::NotEqual, Object::Bool(r)) => l != r,
@@ -98,18 +107,19 @@ impl Connection {
 
                 Ok(Object::Bool(result))
             }
-            Expression::Literal(l) => Ok(Object::String(l)),
+            Expression::Literal(l) => Ok(Object::String(l.to_string())),
             Expression::Identifier(i) => {
                 let value = row.read_column(i)?;
-                Ok(match value {
+                let val = match value {
                     CellValue::Int(i) => i.to_string(),
                     CellValue::Float(f) => f.to_string(),
-                    CellValue::Blob(_) => f.to_stringtodo!(),
-                    CellValue::String(_) => todo!(),
-                    CellValue::Null => String::from("Null"),
-                })
+                    CellValue::Blob(_) => bail!("Can't use blob field in where clause"),
+                    CellValue::String(s) => s,
+                    CellValue::Null => "NULL".to_string(),
+                };
+
+                Ok(Object::String(val))
             }
-                ,
         }
     }
 
@@ -148,7 +158,7 @@ impl Connection {
         };
 
         let tree = self.get_tree(source_name)?;
-        dbg!(&tree);
+        // dbg!(&tree);
         // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
 
         let columns: Vec<String> = select

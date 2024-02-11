@@ -2,15 +2,13 @@
 
 use std::rc::Rc;
 
-
-
 use super::{
     database::Database,
     page::{table_interior::TableInteriorPage, TablePage},
     record::{CellValue, Record},
     schema::SqliteSchema,
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Error, Result};
 
 #[derive(Debug)]
 pub struct TableBTree {
@@ -35,12 +33,8 @@ impl TableNode {
 
     pub fn cells<'a>(&'a self) -> Box<dyn Iterator<Item = &(u32, u16)> + 'a> {
         match &self.page {
-            TablePage::Leaf(l) => {
-                Box::new(l.cell_pointers.iter())
-            }
-            TablePage::Interior(_) => {
-                Box::new(self.children.iter().flat_map(|n| n.leaf_cells()))
-            }
+            TablePage::Leaf(l) => Box::new(l.cell_pointers.iter()),
+            TablePage::Interior(_) => Box::new(self.children.iter().flat_map(|n| n.leaf_cells())),
         }
     }
 
@@ -103,11 +97,8 @@ impl TableBTree {
     }
 
     pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> TableRow {
-
-
         todo!()
     }
-
 }
 
 pub struct RowReader<'a> {
@@ -162,11 +153,9 @@ impl<'a> TableRow<'a> {
             .iter()
             .enumerate()
             .find(|f| *f.1.name == *column_name)
-            .unwrap();
+            .ok_or(anyhow!("Invalid column name: {}", column_name))?;
 
         self.db.read_record_cell(&self.record, index)
-        //
-        // // self.db.read_record_cell(Position::Relative, cell_type)
     }
 }
 
