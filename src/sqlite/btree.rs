@@ -8,10 +8,10 @@ use super::{
     record::{CellValue, Record},
     schema::SqliteSchema,
 };
-use anyhow::{anyhow, bail, Error, Result};
-use prettytable::color::Color;
+use anyhow::{anyhow, bail, Result};
 use ptree::{
-    print_config::UTF_CHARS_BOLD, print_tree, print_tree_with, write_tree, write_tree_with, PrintConfig, Style, TreeBuilder, TreeItem
+    print_tree_with, write_tree_with,
+    PrintConfig, Style, TreeItem,
 };
 
 #[derive(Debug)]
@@ -25,20 +25,12 @@ pub struct TableNode {
     pub children: Vec<TableNode>,
 }
 
-
 static EMPTY_VEC: Vec<(u32, u16)> = Vec::new();
 impl TableNode {
-    fn leaf_cells(&self) -> &Vec<(u32, u16)> {
-        match &self.page {
-            TablePage::Leaf(l) => &l.cell_pointers,
-            TablePage::Interior(_) => &EMPTY_VEC,
-        }
-    }
-
     pub fn cells<'a>(&'a self) -> Box<dyn Iterator<Item = &(u32, u16)> + 'a> {
         match &self.page {
             TablePage::Leaf(l) => Box::new(l.cell_pointers.iter()),
-            TablePage::Interior(_) => Box::new(self.children.iter().flat_map(|n| n.leaf_cells())),
+            TablePage::Interior(_) => Box::new(self.children.iter().flat_map(|n| n.cells())),
         }
     }
 
@@ -114,8 +106,8 @@ impl TableBTree {
         };
         let file_name = format!("trees/{}.txt", self.schema.get_name());
         let file = File::create(file_name)?;
-        write_tree_with(&self.root_node,&file,&config)?;
-        print_tree_with(&self.root_node,&config)?;
+        write_tree_with(&self.root_node, &file, &config)?;
+        print_tree_with(&self.root_node, &config)?;
         Ok(())
     }
 }
@@ -140,8 +132,8 @@ impl TreeItem for TableNode {
 
     fn children(&self) -> std::borrow::Cow<[Self::Child]> {
         match &self.page {
-            TablePage::Leaf(leaf) => Cow::from(vec![]),
-            TablePage::Interior(int) => self.children.to_owned().into(),
+            TablePage::Leaf(_) => Cow::from(vec![]),
+            TablePage::Interior(_) => self.children.to_owned().into(),
         }
     }
 }

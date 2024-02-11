@@ -66,7 +66,6 @@ impl Connection {
 
 
         for row in tree.row_reader(&self.db) {
-            println!("lol");
             let row = row?;
             if let Some(expression) = &select.clause {
                 match Connection::evalute_exp(&row, expression)? {
