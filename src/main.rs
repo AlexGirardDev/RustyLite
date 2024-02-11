@@ -54,8 +54,24 @@ fn main() -> Result<()> {
                             println!("{:15} - {} ", col.name, col.type_affinity);
                         }
                     }
-                    SqliteSchema::Index(_) => {
-                        todo!()
+                    SqliteSchema::Index(index) => {
+                        println!("Table: {}", index.name);
+                    }
+                };
+            }
+        }
+        ".tree" => {
+            for schema in conn.get_schema() {
+                match schema.as_ref() {
+                    SqliteSchema::Table(table) => {
+                        conn.get_tree(table.name.to_string())?.pretty_print();
+                        println!("Table: {}", table.name);
+                        for col in &table.columns {
+                            println!("{:15} - {} ", col.name, col.type_affinity);
+                        }
+                    }
+                    SqliteSchema::Index(index) => {
+                        println!("Table: {}", index.name);
                     }
                 };
             }

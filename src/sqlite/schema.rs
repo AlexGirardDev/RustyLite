@@ -1,12 +1,21 @@
+use std::rc::Rc;
 
-
-use self::{table_schema::TableSchema, index_schema::IndexSchema};
+use self::{index_schema::IndexSchema, table_schema::TableSchema};
 
 pub mod index_schema;
 pub mod table_schema;
 
 #[derive(Debug)]
-pub enum SqliteSchema{
+pub enum SqliteSchema {
     Table(TableSchema),
-    Index(IndexSchema)
+    Index(IndexSchema),
+}
+
+impl SqliteSchema {
+    pub fn get_name(&self) -> Rc<str> {
+        match self {
+            SqliteSchema::Table(t) => t.name.clone(),
+            SqliteSchema::Index(i) => i.name.clone()
+        }
+    }
 }

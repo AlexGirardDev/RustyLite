@@ -1,6 +1,6 @@
 // use std::{rc::Rc};
 
-use std::rc::Rc;
+use std::{borrow::Cow, fs::File, rc::Rc, vec};
 
 use super::{
     database::Database,
@@ -9,18 +9,22 @@ use super::{
     schema::SqliteSchema,
 };
 use anyhow::{anyhow, bail, Error, Result};
+use prettytable::color::Color;
+use ptree::{
+    print_config::UTF_CHARS_BOLD, print_tree, print_tree_with, write_tree, write_tree_with, PrintConfig, Style, TreeBuilder, TreeItem
+};
 
 #[derive(Debug)]
 pub struct TableBTree {
     pub root_node: TableNode,
     pub schema: Rc<SqliteSchema>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableNode {
     pub page: TablePage,
-    children: Vec<TableNode>,
-    // pub leaf_cells: Option<Vec<u16>>,
+    pub children: Vec<TableNode>,
 }
+
 
 static EMPTY_VEC: Vec<(u32, u16)> = Vec::new();
 impl TableNode {
@@ -99,8 +103,48 @@ impl TableBTree {
     pub fn get_row<'a>(&'a self, db: &'a Database, row_id: u64) -> TableRow {
         todo!()
     }
+    pub fn pretty_print(&self) -> Result<()> {
+        let config = PrintConfig {
+            leaf: Style {
+                bold: true,
+                ..Style::default()
+            },
+            branch: Style { ..Style::default() },
+            ..PrintConfig::default()
+        };
+        let file_name = format!("trees/{}.txt", self.schema.get_name());
+        let file = File::create(file_name)?;
+        write_tree_with(&self.root_node,&file,&config)?;
+        print_tree_with(&self.root_node,&config)?;
+        Ok(())
+    }
 }
 
+impl TreeItem for TableNode {
+    type Child = Self;
+
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        match &self.page {
+            TablePage::Leaf(leaf) => {
+                write!(f, "Leaf-{}", leaf.page_number) // Writ
+            }
+            TablePage::Interior(int) => {
+                write!(f, "Interior-{}", int.page_number)
+            }
+        }
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+        match &self.page {
+            TablePage::Leaf(leaf) => Cow::from(vec![]),
+            TablePage::Interior(int) => self.children.to_owned().into(),
+        }
+    }
+}
 pub struct RowReader<'a> {
     db: &'a Database,
     iter: Box<dyn Iterator<Item = &'a (u32, u16)> + 'a>,

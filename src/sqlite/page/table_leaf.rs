@@ -4,7 +4,7 @@ use super::page_header::PageHeader;
 
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct TableLeafPage{
     pub page_number: u32,
     pub header: PageHeader,
@@ -12,7 +12,7 @@ pub struct TableLeafPage{
     // pub cells: Vec<TableLeafCell>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct TableLeafCell {
     // pub row_id: i64,
     pub page_number: u32,

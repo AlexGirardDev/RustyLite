@@ -15,7 +15,7 @@ pub enum Page {
     Index(IndexPage),
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum TablePage {
     Leaf(TableLeafPage),
     Interior(TableInteriorPage),

@@ -3,7 +3,7 @@ use crate::sqlite::database::Database;
 use super::page_header::PageHeader;
 use anyhow::Result;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct TableInteriorPage{
     pub page_number: u32,
     pub header: PageHeader,
@@ -42,7 +42,7 @@ impl TableInteriorCell {
 // The initial portion of the payload that does not spill to overflow pages.
 // A 4-byte big-endian integer page number for the first page of the overflow page list - omitted if all payload fits on the b-tree page.
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct TableInteriorCell {
     pub left_child_page_number: u32,
     pub row_id: i64,

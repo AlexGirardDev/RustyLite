@@ -1,7 +1,7 @@
 
 
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct PageHeader {
     pub page_type: PageType,
     pub free_block: u16,
