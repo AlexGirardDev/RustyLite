@@ -15,7 +15,7 @@ use crate::sqlite::{
 use super::{
     btree::TableBTree,
     database::Database,
-    sql::sql_engine::{self, Expression, Object, Query},
+    sql::sql_engine::{self, AggregateFunction, Expression, Object, Query},
 };
 
 static DIALECT: SQLiteDialect = SQLiteDialect {};
@@ -55,33 +55,70 @@ impl Connection {
         };
 
         let tree = self.get_tree(source_name)?;
+
+        if select
+            .selections
+            .iter()
+            .any(|f| matches!(f, sql_engine::Selection::AggFn(_)))
+        {
+            let agg_fn: &AggregateFunction = select
+                .selections
+                .iter()
+                .map(|sel_item| match sel_item {
+                    sql_engine::Selection::Identifier(_) => panic!("ruh roh"),
+                    sql_engine::Selection::AggFn(a) => a,
+                })
+                .collect_vec()[0];
+
+            match agg_fn {
+                AggregateFunction::Count => {
+                    let mut count = 0;
+                    for row in tree.row_reader(&self.db) {
+                        let row = row?;
+                        if Connection::evalute_clause(&row, &select.clause)? {
+                            count += 1;
+                        }
+                    }
+                    println!("{count}");
+                }
+            }
+            return Ok(());
+        }
+
         let columns: Vec<String> = select
             .selections
             .iter()
             .map(|sel_item| match sel_item {
-                sql_engine::Selection::Identifier(i) => i.to_owned(),
-                sql_engine::Selection::AggFn(agg) => todo!("deal with agg"),
+                sql_engine::Selection::Identifier(i) => Ok(i.to_owned()),
+                sql_engine::Selection::AggFn(_) => {
+                    bail!("can't mix agg and table values")
+                }
             })
-            .collect_vec();
-
+            .try_collect()?;
 
         for row in tree.row_reader(&self.db) {
             let row = row?;
-            if let Some(expression) = &select.clause {
-                match Connection::evalute_exp(&row, expression)? {
-                    Object::Bool(false) => continue,
-                    Object::Bool(true) => (),
-                    _ => bail!("where clause must resolve to bool"),
-                }
+            if !Connection::evalute_clause(&row, &select.clause)? {
+                continue;
             }
 
             let values: Vec<CellValue> =
                 columns.iter().map(|f| row.read_column(f)).try_collect()?;
-
             println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
     }
+    fn evalute_clause(row: &TableRow, expression: &Option<Expression>) -> Result<bool> {
+        match expression {
+            Some(val) => match Connection::evalute_exp(row, val)? {
+                Object::Bool(b) => Ok(b),
+                _ => bail!("bool expceted as result from where clause"),
+            },
+            None => Ok(true),
+            _ => bail!("where clause must resolve to bool"),
+        }
+    }
+
     fn evalute_exp(row: &TableRow, exp: &Expression) -> Result<Object> {
         //i'm not dealing with precedence at all here,
         //this is just a hack to get where clauses mostly working for now

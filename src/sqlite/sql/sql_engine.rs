@@ -179,9 +179,9 @@ pub enum Expression {
     Identifier(String),
 }
 #[derive(Debug)]
-pub enum Object{
+pub enum Object {
     Bool(bool),
-    String(String)
+    String(String),
 }
 
 #[derive(Debug)]
