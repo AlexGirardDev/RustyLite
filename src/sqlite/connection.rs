@@ -107,6 +107,7 @@ impl Connection {
             println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
+
     }
     fn evalute_clause(row: &TableRow, expression: &Option<Expression>) -> Result<bool> {
         match expression {
