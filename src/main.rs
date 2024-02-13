@@ -79,8 +79,6 @@ fn main() -> Result<()> {
             // c
             // let wow = sql_engine::query(_query);
             let result = conn.execute_query(_query.trim());
-            println!("{:?}", result)
-            // for r in result {
             //     println!(
             //         "{}",
             //         r.cells
