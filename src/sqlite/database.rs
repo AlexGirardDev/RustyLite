@@ -3,25 +3,27 @@ use itertools::Itertools;
 
 use sqlparser::{
     ast,
-    dialect::{SQLiteDialect},
+    dialect::SQLiteDialect,
     parser::{Parser, ParserError},
 };
 use std::{
     cell::RefCell,
+    collections::HashSet,
     fs::File,
     io::{Read, Seek, SeekFrom},
     rc::Rc,
 };
 
-use crate::sqlite::page::{page_header::PageHeader, table_leaf::TableLeafPage};
+use crate::sqlite::{
+    page::{page_header::PageHeader, table_leaf::TableLeafPage},
+    schema,
+};
 
 use super::{
     column::Column,
     connection::DatabaseHeader,
     page::{
-        page_header::PageType,
-        table_interior::{TableInteriorCell, TableInteriorPage},
-        IndexPage, Page, TablePage,
+        index_interior::IndexInteriorPage, index_leaf::IndexLeafPage, page_header::PageType, table_interior::{TableInteriorCell, TableInteriorPage}, IndexPage, Page, TablePage
     },
     record::{CellType, CellValue, Record, RecordHeader},
     schema::{index_schema::IndexSchema, table_schema::TableSchema, SqliteSchema},
@@ -110,8 +112,22 @@ impl Database {
         let row_id = self.read_varint()?;
         Ok(row_id.value)
     }
+    pub fn read_index_record(&self, page_number: u32, pointer: u16,) -> Result<Record> {
+        self.seek_position(Position::new(page_number, pointer))?;
+        let payload_size = self.read_varint()?;
+        // let row_id = self.read_varint()?;
+        let cell_header_size = payload_size.size; //;+ row_id.size;
+        let record_header = self.read_record_header(Position::Relative)?;
+        Ok(Record::new(
+            0,
+            record_header,
+            page_number,
+            pointer,
+            cell_header_size as i64,
+        ))
+    }
 
-    pub fn read_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
+    pub fn read_record(&self, page_number: u32, pointer: u16,) -> Result<Record> {
         self.seek_position(Position::new(page_number, pointer))?;
         let payload_size = self.read_varint()?;
         let row_id = self.read_varint()?;
@@ -209,28 +225,29 @@ impl Database {
         };
 
         Ok(match &page_type {
-            // PageType::IndexInterior => Page::Index(IndexPage::Interior(IndexInteriorPage {
-            //     header,
-            //     right_cell,
-            //     page_number,
-            //     cell_pointers,
-            // })),
-            PageType::TableInterior => {
+            PageType::IndexInterior => {
+                let cells = IndexInteriorPage::read_cells(self, cell_pointers)?;
 
+                Page::Index(IndexPage::Interior(IndexInteriorPage {
+                    header,
+                    page_number,
+                    cells,
+                }))
+            },
+            PageType::TableInterior => {
                 let cells = TableInteriorPage::read_cells(self, cell_pointers)?;
 
-
                 Page::Table(TablePage::Interior(TableInteriorPage {
+                    header,
+                    page_number,
+                    cells,
+                }))
+            }
+            PageType::IndexLeaf => Page::Index(IndexPage::Leaf(IndexLeafPage {
                 header,
                 page_number,
-                cells
-            }))
-            },
-            // PageType::IndexLeaf => Page::Index(IndexPage::Leaf(IndexLeafPage {
-            //     header,
-            //     page_number,
-            //     cell_pointers,
-            // })),
+                cell_pointers,
+            })),
             PageType::TableLeaf => Page::Table(TablePage::Leaf(TableLeafPage {
                 header,
                 page_number,
@@ -240,10 +257,8 @@ impl Database {
         })
     }
 
-    pub fn read_record_cell(&self, record: &Record, index: usize) -> Result<CellValue> {
-        self.seek_position(record.get_cell_position(index))?;
-
-        return Ok(match &record.record_header.headers[index] {
+    pub fn read_raw_cell(&self, cell_type: &CellType) -> Result<CellValue> {
+        return Ok(match &cell_type {
             CellType::Null => CellValue::Null,
             CellType::Varint(size) => {
                 let mut buff = [0; 8];
@@ -273,6 +288,12 @@ impl Database {
         });
     }
 
+    pub fn read_record_cell(&self, record: &Record, index: usize) -> Result<CellValue> {
+        self.seek_position(record.get_cell_position(index))?;
+
+        self.read_raw_cell(&record.record_header.headers[index])
+    }
+
     pub fn read_varint(&self) -> Result<Varint> {
         let mut buf = [0; 1];
         let mut more = true;
@@ -289,6 +310,21 @@ impl Database {
         Ok(Varint { value, size })
     }
 
+    pub fn get_table_indexes(&self, table_name: impl AsRef<str>) -> HashSet<String> {
+        self.schema
+            .iter()
+            .filter_map(|f| match f.as_ref() {
+                SqliteSchema::Table(_) => None,
+                SqliteSchema::Index(i) => {
+                    if i.parent_table.as_ref() == table_name.as_ref() {
+                        Some(i.column_name.to_string())
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
     pub fn get_table_schema(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
         let schema = self
             .schema
@@ -299,6 +335,22 @@ impl Database {
             })
             .context(format!(
                 "clould not find table named {}",
+                table_name.as_ref()
+            ))?
+            .clone();
+        Ok(schema)
+    }
+
+    pub fn get_index_schema(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+        let schema = self
+            .schema
+            .iter()
+            .find(|f| match f.as_ref() {
+                SqliteSchema::Index(t) => t.name.as_ref() == table_name.as_ref(),
+                SqliteSchema::Table(_) => false,
+            })
+            .context(format!(
+                "could not find index named {}",
                 table_name.as_ref()
             ))?
             .clone();
@@ -381,14 +433,10 @@ impl Database {
                             .iter()
                             .map(|f| {
                                 let name = Rc::from(f.name.value.to_owned());
-                                // (
-                                // name,
                                 Rc::new(Column {
                                     type_affinity: (&f.data_type).into(),
-                                    // column_index: Some(i as i64),
                                     name,
                                 })
-                                // )
                             })
                             .collect();
                         SqliteSchema::Table(TableSchema {
@@ -400,13 +448,24 @@ impl Database {
                             columns,
                         })
                     }
-                    "index" => SqliteSchema::Index(IndexSchema {
-                        row_id: record.row_id,
-                        name: name.into(),
-                        table_name: table_name.into(),
-                        root_page: root_page as u32,
-                        sql,
-                    }),
+                    "index" => {
+                        // dbg!(&schema);
+                        //
+                        let (_, column_name, parent_name) = name
+                            .split('_')
+                            .collect_tuple()
+                            .expect("only single column indexes are supported");
+
+                        SqliteSchema::Index(IndexSchema {
+                            row_id: record.row_id,
+                            root_page: root_page as u32,
+                            sql,
+
+                            column_name: column_name.into(),
+                            parent_table: parent_name.into(),
+                            name: name.into(),
+                        })
+                    }
                     "view" => bail!("views are not currenty supported"),
                     "trigger" => bail!("triggers are not currenty supported"),
                     _ => bail!("invalid schema type"),
@@ -465,7 +524,6 @@ impl Database {
         Ok(())
     }
 }
-
 pub struct Varint {
     pub value: i64,
     pub size: u8,

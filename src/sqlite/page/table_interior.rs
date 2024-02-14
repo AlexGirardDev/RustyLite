@@ -3,8 +3,8 @@ use crate::sqlite::database::Database;
 use super::page_header::PageHeader;
 use anyhow::Result;
 
-#[derive(Debug,Clone)]
-pub struct TableInteriorPage{
+#[derive(Debug, Clone)]
+pub struct TableInteriorPage {
     pub page_number: u32,
     pub header: PageHeader,
     // pub cell_pointers: Vec<(u32,u16)>,
@@ -12,13 +12,15 @@ pub struct TableInteriorPage{
 }
 
 impl TableInteriorPage {
-    pub fn read_cells(db: &Database, cell_pointers: Vec<(u32,u16)>) -> Result<Vec<TableInteriorCell>> {
+    pub fn read_cells(
+        db: &Database,
+        cell_pointers: Vec<(u32, u16)>,
+    ) -> Result<Vec<TableInteriorCell>> {
         cell_pointers
             .iter()
             .map(|&offset| TableInteriorCell::read_cell(offset.0, offset.1, db))
             .collect() // This will automatically collect into Result<Vec<TableInteriorCell>, Error>
     }
-
 }
 
 impl TableInteriorCell {
@@ -42,7 +44,7 @@ impl TableInteriorCell {
 // The initial portion of the payload that does not spill to overflow pages.
 // A 4-byte big-endian integer page number for the first page of the overflow page list - omitted if all payload fits on the b-tree page.
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct TableInteriorCell {
     pub left_child_page_number: u32,
     pub row_id: i64,

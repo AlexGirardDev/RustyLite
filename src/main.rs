@@ -1,5 +1,6 @@
 use anyhow::{bail, Result};
 use itertools::Itertools;
+use sqlite::record::CellValue;
 
 use crate::sqlite::schema::SqliteSchema;
 
@@ -54,7 +55,31 @@ fn main() -> Result<()> {
                         }
                     }
                     SqliteSchema::Index(index) => {
-                        println!("Table: {}", index.name);
+                        println!("Table: {:?}", index);
+                    }
+                };
+            }
+        }
+        ".test" => {
+            for schema in conn.get_schema() {
+                match schema.as_ref() {
+                    SqliteSchema::Table(table) => {
+                        conn.get_tree(&table.name)?.pretty_print()?;
+                        println!("Table: {}", table.name);
+                        for col in &table.columns {
+                            println!("{:15} - {} ", col.name, col.type_affinity);
+                        }
+                    }
+                    SqliteSchema::Index(index) => {
+                        let tree = conn.get_index_tree(&index.name)?;
+                        let db = conn.get_db();
+                        for row in tree.row_reader(db,CellValue::String(String::from("mauritius"))) {
+                            let row = row?;
+                            let stuff = row.get_row()?;
+                            println!("K:{:?} [{}]", stuff.1, stuff.0);
+                        }
+                        // println!("Index: {:?}", tree);
+                        // println!("Index: {:?}", index);
                     }
                 };
             }
@@ -63,31 +88,20 @@ fn main() -> Result<()> {
             for schema in conn.get_schema() {
                 match schema.as_ref() {
                     SqliteSchema::Table(table) => {
-                        conn.get_tree(table.name.to_string())?.pretty_print();
+                        conn.get_tree(&table.name)?.pretty_print()?;
                         println!("Table: {}", table.name);
                         for col in &table.columns {
                             println!("{:15} - {} ", col.name, col.type_affinity);
                         }
                     }
                     SqliteSchema::Index(index) => {
-                        println!("Table: {}", index.name);
+                        conn.get_index_tree(&index.name)?.pretty_print()?;
                     }
                 };
             }
         }
         _query => {
-            // c
-            // let wow = sql_engine::query(_query);
-            let result = conn.execute_query(_query.trim());
-            //     println!(
-            //         "{}",
-            //         r.cells
-            //             .iter()
-            //             .map(|f| f.to_string())
-            //             .collect::<Vec<String>>()
-            //             .join("|")
-            //     );
-            // }
+            let rsult = conn.execute_query(_query.trim());
         }
     }
 

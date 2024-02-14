@@ -33,7 +33,7 @@ pub enum TablePage {
 //     Interior(TableInteriorPage),
 // }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum IndexPage {
     Leaf(IndexLeafPage),
     Interior(IndexInteriorPage),

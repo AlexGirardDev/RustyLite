@@ -13,7 +13,8 @@ use crate::sqlite::{
 };
 
 use super::{
-    btree::TableBTree,
+    btree::TableBTree ,
+    index_btree::IndexBTree,
     database::Database,
     sql::sql_engine::{self, AggregateFunction, Expression, Object, Query},
 };
@@ -54,13 +55,13 @@ impl Connection {
             sql_engine::Source::Table(t) => t.to_owned(),
         };
 
-        let tree = self.get_tree(source_name)?;
-
+        // handle aggregate functions
         if select
             .selections
             .iter()
             .any(|f| matches!(f, sql_engine::Selection::AggFn(_)))
         {
+            let tree = self.get_tree(&source_name)?;
             let agg_fn: &AggregateFunction = select
                 .selections
                 .iter()
@@ -96,6 +97,27 @@ impl Connection {
             })
             .try_collect()?;
 
+        let indexes = self.db.get_table_indexes(&source_name);
+
+        if columns.iter().all(|f| indexes.contains(f)) {
+            if columns.len() > 0 {
+                bail!("only single column index where clauses are supported");
+            }
+            let tree = self.get_tree(&source_name)?;
+            for row in tree.row_reader(&self.db) {
+                let row = row?;
+                if !Connection::evalute_clause(&row, &select.clause)? {
+                    continue;
+                }
+
+                let values: Vec<CellValue> =
+                    columns.iter().map(|f| row.read_column(f)).try_collect()?;
+                println!("{}", values.iter().map(|f| f.to_string()).join("|"));
+            }
+            return Ok(());
+        }
+
+        let tree = self.get_tree(&source_name)?;
         for row in tree.row_reader(&self.db) {
             let row = row?;
             if !Connection::evalute_clause(&row, &select.clause)? {
@@ -107,8 +129,8 @@ impl Connection {
             println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
-
     }
+
     fn evalute_clause(row: &TableRow, expression: &Option<Expression>) -> Result<bool> {
         match expression {
             Some(val) => match Connection::evalute_exp(row, val)? {
@@ -195,7 +217,7 @@ impl Connection {
             _ => bail!("currently only table sources are supported"),
         };
 
-        let tree = self.get_tree(source_name)?;
+        let tree = self.get_tree(&source_name)?;
         // dbg!(&tree);
         // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
 
@@ -245,11 +267,21 @@ impl Connection {
         })
     }
 
-    pub fn get_tree(&self, table_name: String) -> Result<TableBTree> {
+    pub fn get_tree(&self, table_name: impl AsRef<str>) -> Result<TableBTree> {
         let schema = &self.db.get_table_schema(table_name)?;
         let wow = TableBTree::new(&self.db, schema.clone())?;
         Ok(wow)
     }
+
+    pub fn get_index_tree(&self, table_name: impl AsRef<str>) -> Result<IndexBTree> {
+        let schema = &self.db.get_index_schema(table_name)?;
+        let wow = IndexBTree::new(&self.db, schema.clone())?;
+        Ok(wow)
+    }
+    pub fn get_db(&self) -> &Database {
+        &self.db
+    }
+
 
     pub fn print_column(&self, table_name: String, column_name: String) -> Result<()> {
         let schema = &self.db.get_table_schema(table_name)?;

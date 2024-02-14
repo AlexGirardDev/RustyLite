@@ -11,6 +11,7 @@ pub mod record;
 pub mod database;
 pub mod sql;
 pub mod btree;
+pub mod index_btree;
 
 #[cfg(test)]
 mod tests;

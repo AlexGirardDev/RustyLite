@@ -74,7 +74,7 @@ impl TableBTree {
         RowReader::new(self, db)
     }
 
-    pub fn pretty_print(&self) -> Result<()> {
+    pub fn pretty_print(&self) -> Result<()>{
         let config = PrintConfig {
             leaf: Style {
                 bold: true,
