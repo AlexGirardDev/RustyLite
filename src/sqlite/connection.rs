@@ -104,7 +104,6 @@ impl Connection {
             None => vec![],
         };
         if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
-            eprintln!("index search");
             if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
             }
@@ -150,7 +149,7 @@ impl Connection {
 
             let values: Vec<CellValue> =
                 columns.iter().map(|f| row.read_column(f)).try_collect()?;
-            // println!("{}", values.iter().map(|f| f.to_string()).join("|"));
+            println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
     }
