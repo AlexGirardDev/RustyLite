@@ -64,7 +64,7 @@ fn main() -> Result<()> {
             for schema in conn.get_schema() {
                 match schema.as_ref() {
                     SqliteSchema::Table(table) => {
-                        conn.get_tree(&table.name)?.pretty_print()?;
+                        // conn.get_tree(&table.name)?.pretty_print()?;
                         println!("Table: {}", table.name);
                         for col in &table.columns {
                             println!("{:15} - {} ", col.name, col.type_affinity);
@@ -72,12 +72,14 @@ fn main() -> Result<()> {
                     }
                     SqliteSchema::Index(index) => {
                         let tree = conn.get_index_tree(&index.name)?;
+                        // tree.pretty_print()?;
+
                         let db = conn.get_db();
-                        for row in tree.row_reader(db,CellValue::String(String::from("mauritius"))) {
-                            let row = row?;
-                            let stuff = row.get_row()?;
-                            println!("K:{:?} [{}]", stuff.1, stuff.0);
-                        }
+                        tree.get_row_ids(db, CellValue::String(String::from("monaco")))
+                            .into_iter()
+                            .for_each(|row| {
+                                println!("K:{:?}", row);
+                            });
                         // println!("Index: {:?}", tree);
                         // println!("Index: {:?}", index);
                     }
@@ -101,7 +103,7 @@ fn main() -> Result<()> {
             }
         }
         _query => {
-            let rsult = conn.execute_query(_query.trim());
+            conn.execute_query(_query.trim())?;
         }
     }
 

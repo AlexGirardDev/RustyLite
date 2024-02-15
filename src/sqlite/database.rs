@@ -14,16 +14,17 @@ use std::{
     rc::Rc,
 };
 
-use crate::sqlite::{
-    page::{page_header::PageHeader, table_leaf::TableLeafPage},
-    schema,
-};
+use crate::sqlite::page::{page_header::PageHeader, table_leaf::TableLeafPage};
 
 use super::{
     column::Column,
     connection::DatabaseHeader,
     page::{
-        index_interior::IndexInteriorPage, index_leaf::IndexLeafPage, page_header::PageType, table_interior::{TableInteriorCell, TableInteriorPage}, IndexPage, Page, TablePage
+        index_interior::IndexInteriorPage,
+        index_leaf::IndexLeafPage,
+        page_header::PageType,
+        table_interior::{TableInteriorCell, TableInteriorPage},
+        IndexPage, Page, TablePage,
     },
     record::{CellType, CellValue, Record, RecordHeader},
     schema::{index_schema::IndexSchema, table_schema::TableSchema, SqliteSchema},
@@ -108,11 +109,11 @@ impl Database {
 
     pub fn read_cell_row_id(&self, page_number: u32, pointer: u16) -> Result<i64> {
         self.seek_position(Position::new(page_number, pointer))?;
-        let payload_size = self.read_varint()?;
+        self.read_varint()?; //payload size;
         let row_id = self.read_varint()?;
         Ok(row_id.value)
     }
-    pub fn read_index_record(&self, page_number: u32, pointer: u16,) -> Result<Record> {
+    pub fn read_index_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
         self.seek_position(Position::new(page_number, pointer))?;
         let payload_size = self.read_varint()?;
         // let row_id = self.read_varint()?;
@@ -127,7 +128,7 @@ impl Database {
         ))
     }
 
-    pub fn read_record(&self, page_number: u32, pointer: u16,) -> Result<Record> {
+    pub fn read_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
         self.seek_position(Position::new(page_number, pointer))?;
         let payload_size = self.read_varint()?;
         let row_id = self.read_varint()?;
@@ -164,8 +165,8 @@ impl Database {
         }
     }
 
-    pub fn read_index_page(&self, page_number: u32) -> Result<IndexPage> {
-        match self.read_page(page_number)? {
+    pub fn read_index_page(&self, page_number: u32,value: Option<CellValue>) -> Result<IndexPage> {
+        match self.read_page_raw(page_number, value)? {
             Page::Table(_) => bail!("Expectting table page but got index"),
             Page::Index(i) => Ok(i),
         }
@@ -179,6 +180,10 @@ impl Database {
     }
 
     fn read_page(&self, page_number: u32) -> Result<Page> {
+        self.read_page_raw(page_number, None)
+    }
+
+    fn read_page_raw(&self, page_number: u32,first_key:Option<CellValue>) -> Result<Page> {
         let mut buffer = [0; 1];
 
         let offset = match page_number {
@@ -232,8 +237,9 @@ impl Database {
                     header,
                     page_number,
                     cells,
+                    value:first_key.unwrap_or(CellValue::Null)
                 }))
-            },
+            }
             PageType::TableInterior => {
                 let cells = TableInteriorPage::read_cells(self, cell_pointers)?;
 
@@ -247,13 +253,13 @@ impl Database {
                 header,
                 page_number,
                 cell_pointers,
+                value:first_key.unwrap()
             })),
             PageType::TableLeaf => Page::Table(TablePage::Leaf(TableLeafPage {
                 header,
                 page_number,
                 cell_pointers,
             })),
-            _ => todo!(),
         })
     }
 

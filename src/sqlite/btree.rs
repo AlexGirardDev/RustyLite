@@ -9,10 +9,7 @@ use super::{
     schema::SqliteSchema,
 };
 use anyhow::{anyhow, bail, Result};
-use ptree::{
-    print_tree_with, write_tree_with,
-    PrintConfig, Style, TreeItem,
-};
+use ptree::{print_tree_with, write_tree_with, PrintConfig, Style, TreeItem};
 
 #[derive(Debug)]
 pub struct TableBTree {
@@ -74,7 +71,7 @@ impl TableBTree {
         RowReader::new(self, db)
     }
 
-    pub fn pretty_print(&self) -> Result<()>{
+    pub fn pretty_print(&self) -> Result<()> {
         let config = PrintConfig {
             leaf: Style {
                 bold: true,
@@ -94,11 +91,7 @@ impl TableBTree {
 impl TreeItem for TableNode {
     type Child = Self;
 
-    fn write_self<W: std::io::Write>(
-        &self,
-        f: &mut W,
-        _: &ptree::Style,
-    ) -> std::io::Result<()> {
+    fn write_self<W: std::io::Write>(&self, f: &mut W, _: &ptree::Style) -> std::io::Result<()> {
         match &self.page {
             TablePage::Leaf(leaf) => {
                 write!(f, "Leaf-{}", leaf.page_number) // Writ

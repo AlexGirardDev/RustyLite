@@ -15,7 +15,7 @@ impl SqliteSchema {
     pub fn get_name(&self) -> Rc<str> {
         match self {
             SqliteSchema::Table(t) => t.name.clone(),
-            SqliteSchema::Index(i) => i.name.clone()
+            SqliteSchema::Index(i) => i.name.clone(),
         }
     }
 }

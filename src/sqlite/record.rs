@@ -1,6 +1,4 @@
-use std::{fmt};
-
-
+use std::fmt;
 
 use super::database::Position;
 
@@ -41,7 +39,7 @@ impl Record {
             record_header,
             page_number,
             pointer,
-            cell_header_size
+            cell_header_size,
         }
     }
 
@@ -79,7 +77,7 @@ impl fmt::Display for CellValue {
         }
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum CellValue {
     Null,
     Int(i64),
@@ -87,17 +85,18 @@ pub enum CellValue {
     Blob(Vec<u8>),
     String(String),
 }
-impl PartialEq for CellValue{
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
-            (Self::Float(l0), Self::Float(r0)) => l0 == r0,
-            (Self::Blob(l0), Self::Blob(r0)) => l0 == r0,
-            (Self::String(l0), Self::String(r0)) => l0 == r0,
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
-        }
-    }
-}
+
+// impl PartialEq for CellValue {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (self, other) {
+//             (Self::Int(l0), Self::Int(r0)) => l0 == r0,
+//             (Self::Float(l0), Self::Float(r0)) => l0 == r0,
+//             (Self::Blob(l0), Self::Blob(r0)) => l0 == r0,
+//             (Self::String(l0), Self::String(r0)) => l0 == r0,
+//             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub enum CellType {

@@ -1,9 +1,9 @@
-use std::{rc::Rc};
+use std::rc::Rc;
 
 use crate::sqlite::column::Column;
 
 #[derive(Debug)]
-pub struct TableSchema{
+pub struct TableSchema {
     pub row_id: i64,
     pub name: Rc<str>,
     pub table_name: Rc<str>,

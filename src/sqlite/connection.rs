@@ -13,9 +13,9 @@ use crate::sqlite::{
 };
 
 use super::{
-    btree::TableBTree ,
-    index_btree::IndexBTree,
+    btree::TableBTree,
     database::Database,
+    index_btree::IndexBTree,
     sql::sql_engine::{self, AggregateFunction, Expression, Object, Query},
 };
 
@@ -46,7 +46,7 @@ impl Connection {
             _ => bail!("only a single expression is currently supported"),
         };
 
-        let Query::Select(select) = exp else {bail!("ruh roh")};
+        let Query::Select(select) = exp;
 
         if select.sources.len() != 1 {
             bail!("only a single source is currently supported")
@@ -100,7 +100,7 @@ impl Connection {
         let indexes = self.db.get_table_indexes(&source_name);
 
         if columns.iter().all(|f| indexes.contains(f)) {
-            if columns.len() > 0 {
+            if !columns.is_empty() {
                 bail!("only single column index where clauses are supported");
             }
             let tree = self.get_tree(&source_name)?;
@@ -138,7 +138,6 @@ impl Connection {
                 _ => bail!("bool expceted as result from where clause"),
             },
             None => Ok(true),
-            _ => bail!("where clause must resolve to bool"),
         }
     }
 
@@ -281,7 +280,6 @@ impl Connection {
     pub fn get_db(&self) -> &Database {
         &self.db
     }
-
 
     pub fn print_column(&self, table_name: String, column_name: String) -> Result<()> {
         let schema = &self.db.get_table_schema(table_name)?;

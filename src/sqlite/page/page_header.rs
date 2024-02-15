@@ -1,7 +1,4 @@
-
-
-
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct PageHeader {
     pub page_type: PageType,
     pub free_block: u16,
@@ -10,11 +7,10 @@ pub struct PageHeader {
     pub fragmented_free_bytes: u8,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum PageType {
     TableLeaf,
     TableInterior,
     IndexLeaf,
     IndexInterior,
 }
-

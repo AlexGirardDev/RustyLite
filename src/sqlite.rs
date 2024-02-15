@@ -1,17 +1,16 @@
-
 use anyhow::Result;
-use connection::{Connection};
+use connection::Connection;
 
-pub mod connection;
-pub mod page;
-pub mod schema;
-pub mod column;
-pub mod row;
-pub mod record;
-pub mod database;
-pub mod sql;
 pub mod btree;
+pub mod column;
+pub mod connection;
+pub mod database;
 pub mod index_btree;
+pub mod page;
+pub mod record;
+pub mod row;
+pub mod schema;
+pub mod sql;
 
 #[cfg(test)]
 mod tests;
