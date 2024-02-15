@@ -104,9 +104,9 @@ impl Connection {
             None => vec![],
         };
         if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
+            eprintln!("index search");
             if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
-
             }
             let clause = &select.clause.unwrap();
             let (column_name, value) = match clause {
