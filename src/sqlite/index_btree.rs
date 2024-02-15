@@ -95,10 +95,10 @@ impl IndexNode {
             return Ok(vec![]);
         }
         // start, end, value, self.children.len(), &int.cells;
-        dbg!(&int.cells[start..end]
+        int.cells[start..end]
             .iter()
             .map(|f| f.value.clone())
-            .collect_vec());
+            .collect_vec();
         let row_ids = &self.children[start..end]
             .iter()
             .flat_map(|child| match child.get_row_ids(db, value) {
@@ -116,12 +116,10 @@ impl IndexBTree {
             bail!("expected index schema but got table");
         };
         let root_node = IndexNode::new(db.read_index_page(t_schema.root_page, None)?, db)?;
-        dbg!(root_node.children().len());
         for i in &root_node.children {
             print!("{}", i.children.len());
         }
 
-        dbg!(root_node.children.len());
         Ok(IndexBTree {
             root_node,
             schema: schema.clone(),

@@ -99,7 +99,6 @@ impl Connection {
 
         let indexes = self.db.get_table_indexes(&source_name);
 
-        dbg!(&indexes, &columns);
         let where_columns = match &select.clause {
             Some(exp) => exp.get_columns(),
             None => vec![],
@@ -245,7 +244,6 @@ impl Connection {
         };
 
         let tree = self.get_tree(&source_name)?;
-        // dbg!(&tree);
         // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
 
         let columns: Vec<String> = select

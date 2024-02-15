@@ -317,7 +317,7 @@ impl Database {
     }
 
     pub fn get_table_indexes(&self, table_name: impl AsRef<str>) -> HashSet<String> {
-        dbg!(&self.schema)
+        self.schema
             .iter()
             .filter_map(|f| match f.as_ref() {
                 SqliteSchema::Table(_) => None,
