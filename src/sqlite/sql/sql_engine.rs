@@ -1,3 +1,5 @@
+use std::collections::binary_heap::Iter;
+
 //Select count()
 use anyhow::{bail, Error, Ok, Result};
 
@@ -178,6 +180,22 @@ pub enum Expression {
     Literal(CellValue),
     Identifier(String),
 }
+
+impl Expression {
+    pub fn get_columns(&self) -> Vec<String> {
+        match &self {
+            Expression::InfixExpression(left, _, right) => right
+                .get_columns()
+                .into_iter()
+                .chain(left.get_columns())
+                .collect_vec(),
+
+            Expression::Literal(_) => vec![],
+            Expression::Identifier(i) => vec![i.to_owned()],
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Object {
     Bool(bool),

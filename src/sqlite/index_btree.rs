@@ -128,8 +128,8 @@ impl IndexBTree {
         })
     }
 
-    pub fn get_row_ids(&self, db: &Database, value: CellValue) -> Result<Vec<i64>> {
-        self.root_node.get_row_ids(db, &value)
+    pub fn get_row_ids(&self, db: &Database, value: &CellValue) -> Result<Vec<i64>> {
+        self.root_node.get_row_ids(db, value)
     }
 
     fn get_child_pages(db: &Database, page: &IndexInteriorPage) -> Result<Vec<IndexNode>> {

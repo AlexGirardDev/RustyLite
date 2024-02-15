@@ -99,21 +99,48 @@ impl Connection {
 
         let indexes = self.db.get_table_indexes(&source_name);
 
-        if columns.iter().all(|f| indexes.contains(f)) {
-            if !columns.is_empty() {
+        dbg!(&indexes, &columns);
+        let where_columns = match &select.clause {
+            Some(exp) => exp.get_columns(),
+            None => vec![],
+        };
+        if where_columns.iter().all(|f| indexes.contains(f)) {
+            println!("INDEX SEARCHED");
+            if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
             }
-            let tree = self.get_tree(&source_name)?;
-            for row in tree.row_reader(&self.db) {
-                let row = row?;
-                if !Connection::evalute_clause(&row, &select.clause)? {
-                    continue;
+            let clause = &select.clause.unwrap();
+            let (column_name, value) = match clause {
+                Expression::InfixExpression(left, Operator::Equal, right) => {
+                    match (left.as_ref(), right.as_ref()) {
+                        (Expression::Identifier(ident), Expression::Literal(lit)) => (ident, lit),
+                        _ => bail!("invalide indxed where clause"),
+                    }
                 }
+                _ => bail!("invalide indxed where clause"),
+            };
+            let index_tree = self.get_index_tree(&source_name, column_name)?;
+
+            let tree = self.get_tree(&source_name)?;
+            for row_id in index_tree.get_row_ids(&self.db, value)? {
+                let row = tree.get_row(&self.db, row_id);
+                let row = row?;
 
                 let values: Vec<CellValue> =
                     columns.iter().map(|f| row.read_column(f)).try_collect()?;
                 println!("{}", values.iter().map(|f| f.to_string()).join("|"));
             }
+            // for row in tree.(&self.db) {
+            // let row = row?;
+            // if !Connection::evalute_clause(&row, &select.clause)? {
+            //     continue;
+            // }
+            //
+            // let values: Vec<CellValue> =
+            //     columns.iter().map(|f| row.read_column(f)).try_collect()?;
+            // println!("{}", values.iter().map(|f| f.to_string()).join("|"));
+            // }
+            println!("INDEX SEARCHED");
             return Ok(());
         }
 
@@ -138,6 +165,7 @@ impl Connection {
                 _ => bail!("bool expceted as result from where clause"),
             },
             None => Ok(true),
+            _ => bail!("where clause must resolve to bool"),
         }
     }
 
@@ -272,8 +300,12 @@ impl Connection {
         Ok(wow)
     }
 
-    pub fn get_index_tree(&self, table_name: impl AsRef<str>) -> Result<IndexBTree> {
-        let schema = &self.db.get_index_schema(table_name)?;
+    pub fn get_index_tree(
+        &self,
+        table_name: impl AsRef<str>,
+        column_name: impl AsRef<str>,
+    ) -> Result<IndexBTree> {
+        let schema = &self.db.get_index_schema(table_name, column_name)?;
         let wow = IndexBTree::new(&self.db, schema.clone())?;
         Ok(wow)
     }

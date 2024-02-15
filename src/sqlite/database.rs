@@ -165,7 +165,7 @@ impl Database {
         }
     }
 
-    pub fn read_index_page(&self, page_number: u32,value: Option<CellValue>) -> Result<IndexPage> {
+    pub fn read_index_page(&self, page_number: u32, value: Option<CellValue>) -> Result<IndexPage> {
         match self.read_page_raw(page_number, value)? {
             Page::Table(_) => bail!("Expectting table page but got index"),
             Page::Index(i) => Ok(i),
@@ -183,7 +183,7 @@ impl Database {
         self.read_page_raw(page_number, None)
     }
 
-    fn read_page_raw(&self, page_number: u32,first_key:Option<CellValue>) -> Result<Page> {
+    fn read_page_raw(&self, page_number: u32, first_key: Option<CellValue>) -> Result<Page> {
         let mut buffer = [0; 1];
 
         let offset = match page_number {
@@ -237,7 +237,7 @@ impl Database {
                     header,
                     page_number,
                     cells,
-                    value:first_key.unwrap_or(CellValue::Null)
+                    value: first_key.unwrap_or(CellValue::Null),
                 }))
             }
             PageType::TableInterior => {
@@ -253,7 +253,7 @@ impl Database {
                 header,
                 page_number,
                 cell_pointers,
-                value:first_key.unwrap()
+                value: first_key.unwrap(),
             })),
             PageType::TableLeaf => Page::Table(TablePage::Leaf(TableLeafPage {
                 header,
@@ -317,7 +317,7 @@ impl Database {
     }
 
     pub fn get_table_indexes(&self, table_name: impl AsRef<str>) -> HashSet<String> {
-        self.schema
+        dbg!(&self.schema)
             .iter()
             .filter_map(|f| match f.as_ref() {
                 SqliteSchema::Table(_) => None,
@@ -347,12 +347,19 @@ impl Database {
         Ok(schema)
     }
 
-    pub fn get_index_schema(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
+    pub fn get_index_schema(
+        &self,
+        table_name: impl AsRef<str>,
+        column_name: impl AsRef<str>,
+    ) -> Result<Rc<SqliteSchema>> {
         let schema = self
             .schema
             .iter()
             .find(|f| match f.as_ref() {
-                SqliteSchema::Index(t) => t.name.as_ref() == table_name.as_ref(),
+                SqliteSchema::Index(t) => {
+                    t.column_name.as_ref() == column_name.as_ref()
+                        && t.parent_table.as_ref() == table_name.as_ref()
+                }
                 SqliteSchema::Table(_) => false,
             })
             .context(format!(
@@ -457,7 +464,7 @@ impl Database {
                     "index" => {
                         // dbg!(&schema);
                         //
-                        let (_, column_name, parent_name) = name
+                        let (_, parent_name, column_name) = name
                             .split('_')
                             .collect_tuple()
                             .expect("only single column indexes are supported");

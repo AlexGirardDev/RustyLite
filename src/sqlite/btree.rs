@@ -8,7 +8,8 @@ use super::{
     record::{CellValue, Record},
     schema::SqliteSchema,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Ok, Result};
+use itertools::Itertools;
 use ptree::{print_tree_with, write_tree_with, PrintConfig, Style, TreeItem};
 
 #[derive(Debug)]
@@ -43,6 +44,25 @@ impl TableNode {
             }
         })
     }
+    pub fn get_row(&self, db: &Database, row_id: i64) -> Result<Record> {
+        match &self.page {
+            TablePage::Leaf(leaf) => {
+                for (page_number, pointer) in &leaf.cell_pointers {
+                    let record = db.read_record(*page_number, *pointer)?;
+                    if record.row_id == row_id {
+                        return Ok(record);
+                    }
+                }
+                bail!("could not find row")
+            }
+            TablePage::Interior(int) => Ok(
+                match int.cells.iter().find_position(|cell| cell.row_id >= row_id) {
+                    Some(pos) => self.children[pos.0].get_row(db, row_id)?,
+                    None => bail!("could not finde row"),
+                },
+            ),
+        }
+    }
 }
 
 impl TableBTree {
@@ -71,6 +91,11 @@ impl TableBTree {
         RowReader::new(self, db)
     }
 
+    pub fn get_row<'a>(&'a self, db: &'a Database, row_id: i64) -> Result<TableRow> {
+        let record = self.root_node.get_row(db, row_id)?;
+        Ok(TableRow::new(db, record, self.schema.clone()))
+    }
+
     pub fn pretty_print(&self) -> Result<()> {
         let config = PrintConfig {
             leaf: Style {
@@ -88,27 +113,6 @@ impl TableBTree {
     }
 }
 
-impl TreeItem for TableNode {
-    type Child = Self;
-
-    fn write_self<W: std::io::Write>(&self, f: &mut W, _: &ptree::Style) -> std::io::Result<()> {
-        match &self.page {
-            TablePage::Leaf(leaf) => {
-                write!(f, "Leaf-{}", leaf.page_number) // Writ
-            }
-            TablePage::Interior(int) => {
-                write!(f, "Interior-{}", int.page_number)
-            }
-        }
-    }
-
-    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
-        match &self.page {
-            TablePage::Leaf(_) => Cow::from(vec![]),
-            TablePage::Interior(_) => self.children.to_owned().into(),
-        }
-    }
-}
 pub struct RowReader<'a> {
     db: &'a Database,
     iter: Box<dyn Iterator<Item = &'a (u32, u16)> + 'a>,
@@ -164,6 +168,28 @@ impl<'a> TableRow<'a> {
             .ok_or(anyhow!("Invalid column name: {}", column_name))?;
 
         self.db.read_record_cell(&self.record, index)
+    }
+}
+
+impl TreeItem for TableNode {
+    type Child = Self;
+
+    fn write_self<W: std::io::Write>(&self, f: &mut W, _: &ptree::Style) -> std::io::Result<()> {
+        match &self.page {
+            TablePage::Leaf(leaf) => {
+                write!(f, "Leaf-{}", leaf.page_number) // Writ
+            }
+            TablePage::Interior(int) => {
+                write!(f, "Interior-{}", int.page_number)
+            }
+        }
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+        match &self.page {
+            TablePage::Leaf(_) => Cow::from(vec![]),
+            TablePage::Interior(_) => self.children.to_owned().into(),
+        }
     }
 }
 
