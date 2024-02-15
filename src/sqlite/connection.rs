@@ -104,7 +104,7 @@ impl Connection {
             Some(exp) => exp.get_columns(),
             None => vec![],
         };
-        if where_columns.iter().all(|f| indexes.contains(f)) {
+        if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
             println!("INDEX SEARCHED");
             if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
