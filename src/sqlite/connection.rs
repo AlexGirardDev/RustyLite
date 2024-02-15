@@ -106,6 +106,7 @@ impl Connection {
         if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
             if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
+
             }
             let clause = &select.clause.unwrap();
             let (column_name, value) = match clause {
@@ -118,7 +119,6 @@ impl Connection {
                 _ => bail!("invalide indxed where clause"),
             };
             let index_tree = self.get_index_tree(&source_name, column_name)?;
-
             let tree = self.get_tree(&source_name)?;
             for row_id in index_tree.get_row_ids(&self.db, value)? {
                 let row = tree.get_row(&self.db, row_id);
@@ -150,7 +150,7 @@ impl Connection {
 
             let values: Vec<CellValue> =
                 columns.iter().map(|f| row.read_column(f)).try_collect()?;
-            println!("{}", values.iter().map(|f| f.to_string()).join("|"));
+            // println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
     }

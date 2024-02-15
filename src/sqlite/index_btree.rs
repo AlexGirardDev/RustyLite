@@ -116,10 +116,6 @@ impl IndexBTree {
             bail!("expected index schema but got table");
         };
         let root_node = IndexNode::new(db.read_index_page(t_schema.root_page, None)?, db)?;
-        for i in &root_node.children {
-            print!("{}", i.children.len());
-        }
-
         Ok(IndexBTree {
             root_node,
             schema: schema.clone(),
