@@ -55,7 +55,7 @@ impl IndexNode {
                 let row_id = db.read_record_cell(&record, 1)?;
                 let CellValue::Int(row_id) = row_id else { bail!("row_id must be an int {}",row_id); };
                 let cell = db.read_record_cell(&record, 0)?;
-                println!("{}",cell);
+                // println!("{}",cell);
                 Ok((cell, row_id))
 
             })
@@ -95,10 +95,8 @@ impl IndexNode {
         if end > 1{
 
         }
-        dbg!(start, end);
         // dbg!(start, end, self.children());
         if start > end {
-            dbg!("leaving", start, end);
             return Ok(vec![]);
         }
         // start, end, value, self.children.len(), &int.cells;
@@ -113,7 +111,6 @@ impl IndexNode {
                 Err(e) => vec![Err(e)], // Convert the error into a single-element vector with an Err result
             })
             .collect::<Result<Vec<_>, _>>()?;
-        dbg!(row_ids);
         Ok(row_ids.to_owned())
     }
 }

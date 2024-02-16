@@ -57,42 +57,42 @@ impl TableNode {
                     }
                 }
 
-                eprintln!(
-                    "LEAF GOING INto:{} looking for:{}",
-                    &self.page.get_row_id(),
-                    row_id
-                );
-                eprintln!(
-                    "{}",
-                    row_ids
-                        .iter()
-                        .map(|f| f.to_string())
-                        .collect_vec()
-                        .join("|")
-                );
-                eprintln!(
-                    "{}",
-                    self.children()
-                        .iter()
-                        .map(|f| f.page.page_number().to_string())
-                        .collect_vec()
-                        .join("|")
-                );
+                // eprintln!(
+                //     "LEAF GOING INto:{} looking for:{}",
+                //     &self.page.get_row_id(),
+                //     row_id
+                // );
+                // eprintln!(
+                //     "{}",
+                //     row_ids
+                //         .iter()
+                //         .map(|f| f.to_string())
+                //         .collect_vec()
+                //         .join("|")
+                // );
+                // eprintln!(
+                //     "{}",
+                //     self.children()
+                //         .iter()
+                //         .map(|f| f.page.page_number().to_string())
+                //         .collect_vec()
+                //         .join("|")
+                // );
             }
             TablePage::Interior(i) => {
-                eprintln!(
-                    "INT GOING INto:{} looking for:{}",
-                    &self.page.get_row_id(),
-                    row_id
-                );
-                eprintln!(
-                    "{}",
-                    self.children
-                        .iter()
-                        .map(|f| f.page.get_row_id().to_string())
-                        .collect_vec()
-                        .join("|")
-                );
+                // eprintln!(
+                //     "INT GOING INto:{} looking for:{}",
+                //     &self.page.get_row_id(),
+                //     row_id
+                // );
+                // eprintln!(
+                //     "{}",
+                //     self.children
+                //         .iter()
+                //         .map(|f| f.page.get_row_id().to_string())
+                //         .collect_vec()
+                //         .join("|")
+                // );
                 let wow = self
                     .children
                     .iter()
