@@ -11,6 +11,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{Read, Seek, SeekFrom},
+    option,
     rc::Rc,
 };
 
@@ -158,15 +159,15 @@ impl Database {
         Ok((page_start + offset as u32) as i64)
     }
 
-    pub fn read_table_page(&self, page_number: u32) -> Result<TablePage> {
-        match self.read_page(page_number)? {
+    pub fn read_table_page(&self, page_number: u32, row_id: Option<i64>) -> Result<TablePage> {
+        match self.read_page_raw(page_number, None, row_id)? {
             Page::Table(t) => Ok(t),
             Page::Index(_) => bail!("Expectting table page but got index"),
         }
     }
 
     pub fn read_index_page(&self, page_number: u32, value: Option<CellValue>) -> Result<IndexPage> {
-        match self.read_page_raw(page_number, value)? {
+        match self.read_page_raw(page_number, value, None)? {
             Page::Table(_) => bail!("Expectting table page but got index"),
             Page::Index(i) => Ok(i),
         }
@@ -178,12 +179,16 @@ impl Database {
     ) -> Result<TableInteriorCell> {
         todo!()
     }
-
     fn read_page(&self, page_number: u32) -> Result<Page> {
-        self.read_page_raw(page_number, None)
+        self.read_page_raw(page_number, None, None)
     }
 
-    fn read_page_raw(&self, page_number: u32, first_key: Option<CellValue>) -> Result<Page> {
+    fn read_page_raw(
+        &self,
+        page_number: u32,
+        first_key: Option<CellValue>,
+        row_id: Option<i64>,
+    ) -> Result<Page> {
         let mut buffer = [0; 1];
 
         let offset = match page_number {
@@ -200,26 +205,43 @@ impl Database {
             _ => bail!("invalid page type "),
         };
 
+        // Offset	Size	Description
+        // 0	1	The one-byte flag at offset 0 indicating the b-tree page type.
+        // 1	2	The two-byte integer at offset 1 gives the start of the first freeblock on the page, or is zero if there are no freeblocks.
+        // 3	2	The two-byte integer at offset 3 gives the number of cells on the page.
+        // 5	2	The two-byte integer at offset 5 designates the start of the cell content area. A zero value for this integer is interpreted as 65536.
+        // 7	1	The one-byte integer at offset 7 gives the number of fragmented free bytes within the cell content area.
+        // 8	4	The four-byte page number at offset 8 is the right-most pointer. This value appears in the header of interior b-tree pages only and is omitted from all other pages.
+        //
+        //
+        self.seek(page_number, offset + 1)?;
         let free_block = self.read_u16()?;
-        let cell_count = self.read_u16()?;
+        self.seek(page_number, offset + 3)?;
+        let mut cell_count = self.read_u16()?;
+        self.seek(page_number, offset + 5)?;
         let cell_content_area_offset = self.read_u16()?;
 
         let mut buffer = [0; 1];
         self.read_exact(&mut buffer)?;
         let fragmented_free_bytes = u8::from_be_bytes(buffer);
 
-        let _right_cell = match page_type {
+        let right_cell = match page_type {
             PageType::IndexInterior | PageType::TableInterior => self.read_u32()?,
             _ => 0,
         };
 
         let mut cell_array: Vec<u8> = vec![0; cell_count as usize * 2];
 
+        // if page_number != 1 {
+        //     self.seek(page_number, cell_content_area_offset)?;
+        // }
         self.read_exact(cell_array.as_mut_slice())?;
+
         let cell_pointers: Vec<(u32, u16)> = cell_array
             .chunks(2)
             .map(|f| (page_number, u16::from_be_bytes([f[0], f[1]])))
             .collect();
+        assert_eq!(cell_pointers.len(), cell_count as usize);
 
         let header = PageHeader {
             page_type: page_type.clone(),
@@ -232,21 +254,35 @@ impl Database {
         Ok(match &page_type {
             PageType::IndexInterior => {
                 let cells = IndexInteriorPage::read_cells(self, cell_pointers)?;
-
                 Page::Index(IndexPage::Interior(IndexInteriorPage {
                     header,
                     page_number,
+                    value: cells.last().unwrap().value.clone(),
                     cells,
-                    value: first_key.unwrap_or(CellValue::Null),
+                    right_cell,
                 }))
             }
             PageType::TableInterior => {
-                let cells = TableInteriorPage::read_cells(self, cell_pointers)?;
+                let mut cells = TableInteriorPage::read_cells(self, &cell_pointers)?;
+                let row_id=cells.last().unwrap().row_id;
+
+                // let page = self.read_table_page(right_cell, None)?;
+                // let right_row_id = match &page {
+                //     TablePage::Leaf(l) => l.row_id,
+                //     TablePage::Interior(i) => i.cells.iter().last().unwrap().row_id,
+                // };
+
+                cells.push(TableInteriorCell {
+                    row_id: 0,
+                    left_child_page_number: right_cell,
+                });
 
                 Page::Table(TablePage::Interior(TableInteriorPage {
                     header,
                     page_number,
+                    row_id: row_id,
                     cells,
+                    right_cell,
                 }))
             }
             PageType::IndexLeaf => Page::Index(IndexPage::Leaf(IndexLeafPage {
@@ -258,6 +294,7 @@ impl Database {
             PageType::TableLeaf => Page::Table(TablePage::Leaf(TableLeafPage {
                 header,
                 page_number,
+                row_id: row_id.unwrap_or(0),
                 cell_pointers,
             })),
         })
@@ -296,7 +333,6 @@ impl Database {
 
     pub fn read_record_cell(&self, record: &Record, index: usize) -> Result<CellValue> {
         self.seek_position(record.get_cell_position(index))?;
-
         self.read_raw_cell(&record.record_header.headers[index])
     }
 
@@ -393,7 +429,7 @@ impl Database {
     }
 
     fn read_schemas(&self) -> Result<Vec<SqliteSchema>> {
-        let page = self.read_table_page(1)?;
+        let page = self.read_table_page(1, None)?;
         let mut schemas: Vec<SqliteSchema> = Vec::new();
         let TablePage::Leaf(page) = page else {
             bail!("sql schhemaa table must be a leaf page")

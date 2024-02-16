@@ -4,6 +4,7 @@ use super::page_header::PageHeader;
 pub struct TableLeafPage {
     pub page_number: u32,
     pub header: PageHeader,
+    pub row_id: i64,
     pub cell_pointers: Vec<(u32, u16)>,
     // pub cells: Vec<TableLeafCell>,
 }

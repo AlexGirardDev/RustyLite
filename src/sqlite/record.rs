@@ -6,7 +6,7 @@ use super::database::Position;
 pub struct Record {
     pub row_id: i64,
     pub record_header: RecordHeader,
-    page_number: u32,
+    pub page_number: u32,
     pointer: u16,
     cell_header_size: i64,
 }

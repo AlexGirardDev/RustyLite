@@ -49,7 +49,7 @@ fn main() -> Result<()> {
             for schema in conn.get_schema() {
                 match schema.as_ref() {
                     SqliteSchema::Table(table) => {
-                        println!("Table: {}", table.name);
+                        println!("Table: {} {}", table.name, table.root_page);
                         for col in &table.columns {
                             println!("{:15} - {} ", col.name, col.type_affinity);
                         }
@@ -64,20 +64,27 @@ fn main() -> Result<()> {
             for schema in conn.get_schema() {
                 match schema.as_ref() {
                     SqliteSchema::Table(table) => {
-                        let tree =  conn.get_tree(&table.name)?;
-                        
+                        let tree = conn.get_tree(&table.name)?;
+
                         let db = conn.get_db();
+                        // let max_row = tree
+                        //     .row_reader(&db)
+                        //     .max_by_key(|f| (f.as_ref().unwrap()).record.row_id.clone())
+                        //     .unwrap()?;
+                        // println!("MAX: {}, {}", max_row.record.row_id, &table.name);
+                        todo!();
                         let row = tree.get_row(db, 6186127)?;
-                        println!("{:?}",row.read_column("name")?);
+                        println!("{:?}", row.read_column("name")?);
                         for col in &table.columns {
                             println!("{:15} - {} ", col.name, col.type_affinity);
                         }
                     }
                     SqliteSchema::Index(index) => {
                         let tree = conn.get_index_tree(&index.parent_table, &index.column_name)?;
-                        // tree.pretty_print()?;
+                        tree.pretty_print()?;
 
                         let db = conn.get_db();
+
                         tree.get_row_ids(db, &CellValue::String(String::from("monaco")))
                             .into_iter()
                             .for_each(|row| {
@@ -100,10 +107,15 @@ fn main() -> Result<()> {
                         }
                     }
                     SqliteSchema::Index(index) => {
-                        conn.get_index_tree(&index.parent_table, &index.column_name)?.pretty_print()?;
+                        conn.get_index_tree(&index.parent_table, &index.column_name)?
+                            .pretty_print()?;
                     }
                 };
             }
+        }
+        s if s.starts_with(".page") => {
+            let page_number = dbg!(s).split_once(' ').unwrap().1.parse::<u32>().unwrap();
+            conn.dump_page(page_number);
         }
         _query => {
             conn.execute_query(_query.trim())?;

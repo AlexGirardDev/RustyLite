@@ -39,7 +39,7 @@ impl TableNode {
             },
             TablePage::Interior(i) => {
                 let children = TableBTree::get_child_pages(db, i)?;
-
+                assert_eq!(children.len(), i.cells.len());
                 TableNode { page, children }
             }
         })
@@ -47,21 +47,94 @@ impl TableNode {
     pub fn get_row(&self, db: &Database, row_id: i64) -> Result<Record> {
         match &self.page {
             TablePage::Leaf(leaf) => {
-                for (page_number, pointer) in &leaf.cell_pointers {
+                let mut row_ids = Vec::<i64>::new();
+                for (page_number, pointer) in leaf.cell_pointers.iter() {
                     let record = db.read_record(*page_number, *pointer)?;
+                    // dbg!(record.row_id);
+                    row_ids.push(record.row_id);
                     if record.row_id == row_id {
                         return Ok(record);
                     }
                 }
-                bail!("could not find row")
+
+                eprintln!(
+                    "LEAF GOING INto:{} looking for:{}",
+                    &self.page.get_row_id(),
+                    row_id
+                );
+                eprintln!(
+                    "{}",
+                    row_ids
+                        .iter()
+                        .map(|f| f.to_string())
+                        .collect_vec()
+                        .join("|")
+                );
+                eprintln!(
+                    "{}",
+                    self.children()
+                        .iter()
+                        .map(|f| f.page.page_number().to_string())
+                        .collect_vec()
+                        .join("|")
+                );
             }
-            TablePage::Interior(int) => Ok(
-                match int.cells.iter().find_position(|cell| cell.row_id >= row_id) {
-                    Some(pos) => self.children[pos.0].get_row(db, row_id)?,
-                    None => bail!("could not finde row"),
-                },
-            ),
+            TablePage::Interior(i) => {
+                eprintln!(
+                    "INT GOING INto:{} looking for:{}",
+                    &self.page.get_row_id(),
+                    row_id
+                );
+                eprintln!(
+                    "{}",
+                    self.children
+                        .iter()
+                        .map(|f| f.page.get_row_id().to_string())
+                        .collect_vec()
+                        .join("|")
+                );
+                let wow = self
+                    .children
+                    .iter()
+                    .find_or_last(|p| row_id <= p.page.get_row_id());
+                // .tuple_windows()
+                // .find_map(|(first_table, second_table)| {
+                //     let first = first_table.page.get_row_id();
+                //     let second = second_table.page.get_row_id();
+                //     if first == row_id {
+                //         dbg!("exact match!", first);
+                //         return Some(first_table);
+                //     }
+                //     if second == row_id {
+                //         dbg!("exact match!", second);
+                //         return Some(second_table);
+                //     }
+                //     if row_id < first && row_id < second {
+                //         println!("in range!{row_id} {first}-{second}");
+                //
+                //         Some(second_table)
+                //     } else {
+                //         None
+                //     }
+                // });
+
+                // dbg!(i.cells.iter().map(|f|f.row_id).collect_vec(), row_id);
+
+                return wow.unwrap().get_row(db, row_id);
+                // match wow{
+                //     Some(s) => return s.get_row(db, row_id),
+                //     None =>{
+                //         println!("{:?}",i.row_id );
+                //         let row_ids =
+                //         dbg!(wow.)
+                //     }
+                //
+                // };
+                //
+            }
         }
+
+        todo!("{}", row_id);
     }
 }
 
@@ -70,7 +143,7 @@ impl TableBTree {
         let SqliteSchema::Table(t_schema) = schema.as_ref() else {
             bail!("expected table schema but got index");
         };
-        let root_node = TableNode::new(db.read_table_page(t_schema.root_page)?, db)?;
+        let root_node = TableNode::new(db.read_table_page(t_schema.root_page, None)?, db)?;
         Ok(TableBTree {
             root_node,
             schema: schema.clone(),
@@ -80,7 +153,7 @@ impl TableBTree {
     fn get_child_pages(db: &Database, page: &TableInteriorPage) -> Result<Vec<TableNode>> {
         let mut result = Vec::new();
         for cell in &page.cells {
-            let page = db.read_table_page(cell.left_child_page_number)?;
+            let page = db.read_table_page(cell.left_child_page_number, Some(cell.row_id))?;
             let node = TableNode::new(page, db)?;
             result.push(node);
         }
@@ -92,6 +165,20 @@ impl TableBTree {
     }
 
     pub fn get_row<'a>(&'a self, db: &'a Database, row_id: i64) -> Result<TableRow> {
+        // match &self.root_node.page{
+        //     TablePage::Leaf(_) => todo!(),
+        //     TablePage::Interior(i) => {
+        //         println!(
+        //             "{}",
+        //             i.cells
+        //                 .iter()
+        //                 .map(|f| f.row_id.to_string())
+        //                 .collect_vec()
+        //                 .join("|")
+        //         );
+        //     },
+        // };
+        // todo!();
         let record = self.root_node.get_row(db, row_id)?;
         Ok(TableRow::new(db, record, self.schema.clone()))
     }
@@ -142,7 +229,7 @@ impl<'a> Iterator for RowReader<'a> {
 }
 
 pub struct TableRow<'a> {
-    record: Record,
+    pub record: Record,
     schema: Rc<SqliteSchema>,
     db: &'a Database,
 }
@@ -177,10 +264,10 @@ impl TreeItem for TableNode {
     fn write_self<W: std::io::Write>(&self, f: &mut W, _: &ptree::Style) -> std::io::Result<()> {
         match &self.page {
             TablePage::Leaf(leaf) => {
-                write!(f, "Leaf-{}", leaf.page_number) // Writ
+                write!(f, "{}", leaf.row_id) // Writ
             }
             TablePage::Interior(int) => {
-                write!(f, "Interior-{}", int.page_number)
+                write!(f, "{}", int.row_id)
             }
         }
     }
@@ -192,135 +279,3 @@ impl TreeItem for TableNode {
         }
     }
 }
-
-//     pub fn get_leaf_cells<'a>(
-//         page: &'a Page2,
-//         db: &'a Database,
-//     ) -> Box<Iterator<Item = &TableLeafCell> + 'a> {
-//         Box::new(
-//             page.cell_pointers
-//                 .iter()
-//                 .map(|f| {
-//                     match page.table_page {
-//                         TablePage::Leaf(_) => vec![TableLeafCell {
-//                             page_number: page.page_number,
-//                             offset: *f,
-//                         }]
-//                         .into_iter(),
-//                         TablePage::Interior(_) => {
-//                             // TableLeafCell{page_number:2, offset:2}
-//                             let wow =
-//                                 TableInteriorCell::read_cell(page.page_number, *f, db).unwrap();
-//                             let page2 = db.read_table_page(wow.left_child_page_number).unwrap();
-//                             TableBTree::get_leaf_cells(page, db)
-//                         }
-//                     }
-//                 })
-//                 .flatten(),
-//         )
-//     }
-//
-//     // match (db,&pge) {
-//     //     (_,TablePage::Leaf(leaf)) => {
-//     //         println!("{:?}", leaf.cell_pointers);
-//     //         let result = leaf.cell_pointers.iter().map(|f| {
-//     //             println!("{f}");
-//     //             TableLeafCell {
-//     //                 page_number: leaf.page_number,
-//     //                 offset: *f,
-//     //             }
-//     //         });
-//     //         result
-//     //     },
-//     //     (db2,TablePage::Interior(interior)) => {
-//     //         // let Some(children) = &interior.cell_pointers else {panic!("")};
-//     //
-//     //
-//     //         let result = interior.cell_pointers.iter().map(|f| {
-//     //             let wow = TableInteriorCell::read_cell(interior.page_number, *f, db2).unwrap();
-//     //             let page2 = db2.read_table_page(wow.left_child_page_number).unwrap();
-//     //             TableBTree::get_leaf_cells(&page2, db2)
-//     //
-//     //         });
-//     //         result.flatten()
-//     //             // TableBTree::get_leaf_cells(db.read)});
-//     //
-//     //
-//     //         // TableBTree::get_leaf_cells(&children[0])
-//     //
-//     //     }
-//     // }
-//     // }
-//
-//     // pub fn values(&self) -> impl {
-//     //     let wow = self.root_node.children.unwrap().iter().map(|n| n.values()).flatten();
-//     //     todo!()
-//     // }
-// }
-// // pub struct Node {
-// //     pub values: Vec<i32>,
-// //     pub children: Vec<Node>,
-// // }
-// //
-// // impl Node {
-// // }
-// //
-// //
-// // fn main() {
-// //     let n = Node {
-// //         values: vec![1, 2, 3],
-// //         children: vec![
-// //             Node {
-// //                 values: vec![4, 5],
-// //                 children: vec![
-// //                     Node {
-// //                         values: vec![4, 5],
-// //                         children: vec![],
-// //                     },
-// //                     Node {
-// //                         values: vec![6, 7],
-// //                         children: vec![],
-// //                     },
-// //                 ],
-// //             },
-// //             Node {
-// //                 values: vec![6, 7],
-// //                 children: vec![],
-// //             },
-// //         ],
-// //     };
-// //     let v: Vec<_> = n.values().collect();
-// //     println!("v = {:?}", v);
-// // }
-// //
-// // // #[derive(Debug)]
-// // // pub struct TableInteriorPage {
-// // //     pub page_number: i64,
-// // //     pub header:PageHeader,
-// // //     pub right_cell: u32,
-// // //     pub cell_pointers:Vec<u16>
-// // // }
-// // //
-// // // #[derive(Debug)]
-// // // pub struct TableInteriorCell {
-// // //     pub page_number: i64,
-// // //     pub child_page_number: i64,
-// // //     pub row_id: i64,
-// // // }
-// // //
-// // //
-// // // #[derive(Debug)]
-// // // pub struct TableLeafPage {
-// // //     pub page_number: i64,
-// // //     pub header: PageHeader,
-// // //     pub cell_pointers: Vec<u16>,
-// // //     // pub cells: Vec<TableLeafCell>,
-// // // }
-// // //
-// // // #[derive(Debug)]
-// // // pub struct TableLeafCell {
-// // //     pub row_id: i64,
-// // //     pub location: i64,
-// // //     pub payload_size: i64,
-// // //     pub record_header: RecordHeader,
-// // // }

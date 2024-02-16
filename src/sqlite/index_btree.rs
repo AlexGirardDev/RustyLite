@@ -31,7 +31,6 @@ impl IndexNode {
             },
             IndexPage::Interior(i) => {
                 let children = IndexBTree::get_child_pages(db, i)?;
-
                 IndexNode { page, children }
             }
         })
@@ -56,7 +55,9 @@ impl IndexNode {
                 let row_id = db.read_record_cell(&record, 1)?;
                 let CellValue::Int(row_id) = row_id else { bail!("row_id must be an int {}",row_id); };
                 let cell = db.read_record_cell(&record, 0)?;
+                println!("{}",cell);
                 Ok((cell, row_id))
+
             })
             .filter_map_ok(|(cell_value, row_id)|
                 { if &cell_value == value { Some(row_id) } else { None } }
@@ -72,26 +73,32 @@ impl IndexNode {
         let start_index = &int
             .cells
             .iter()
-            .find_position(|f| &f.value >= value)
+            .find_position(|f| &f.value <= value)
             .map(|f| f.0);
         let end_index = int
             .cells
             .iter()
             .rev()
-            .find_position(|f| &f.value <= value)
+            .find_position(|f| &f.value >= value)
             .map(|f| f.0);
         if start_index.is_none() && end_index.is_none() {
             return Ok(vec![]);
         }
 
-        let start = start_index.unwrap_or(0);
-        let end = self
+        let mut start = start_index.unwrap_or(0).saturating_sub(1);
+        let mut end = self
             .children
             .len()
             .checked_sub(end_index.unwrap_or(0))
             .unwrap_or(self.children.len());
+
+        if end > 1{
+
+        }
+        dbg!(start, end);
         // dbg!(start, end, self.children());
-        if start >= end {
+        if start > end {
+            dbg!("leaving", start, end);
             return Ok(vec![]);
         }
         // start, end, value, self.children.len(), &int.cells;
@@ -106,6 +113,7 @@ impl IndexNode {
                 Err(e) => vec![Err(e)], // Convert the error into a single-element vector with an Err result
             })
             .collect::<Result<Vec<_>, _>>()?;
+        dbg!(row_ids);
         Ok(row_ids.to_owned())
     }
 }
@@ -116,6 +124,10 @@ impl IndexBTree {
             bail!("expected index schema but got table");
         };
         let root_node = IndexNode::new(db.read_index_page(t_schema.root_page, None)?, db)?;
+        for i in &root_node.children {
+            print!("{}", i.children.len());
+        }
+
         Ok(IndexBTree {
             root_node,
             schema: schema.clone(),

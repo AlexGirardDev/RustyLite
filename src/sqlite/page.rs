@@ -21,6 +21,26 @@ pub enum TablePage {
     Interior(TableInteriorPage),
 }
 
+impl TablePage {
+    pub fn get_row_id(&self)->i64{
+        match self{
+            TablePage::Leaf(l) => l.row_id,
+            TablePage::Interior(i) => i.row_id,
+        }
+
+    }
+    pub fn page_number(&self)->u32{
+        match self{
+            TablePage::Leaf(l) => l.page_number,
+            TablePage::Interior(i) => i.page_number,
+        }
+
+    }
+    
+}
+
+
+
 // #[derive(Debug)]
 // pub struct Page2 {
 //     pub page_number: u32,

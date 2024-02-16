@@ -2,11 +2,14 @@ use crate::sqlite::database::Database;
 
 use super::page_header::PageHeader;
 use anyhow::Result;
+use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub struct TableInteriorPage {
     pub page_number: u32,
     pub header: PageHeader,
+    pub row_id: i64,
+    pub right_cell: u32,
     // pub cell_pointers: Vec<(u32,u16)>,
     pub cells: Vec<TableInteriorCell>,
 }
@@ -14,12 +17,17 @@ pub struct TableInteriorPage {
 impl TableInteriorPage {
     pub fn read_cells(
         db: &Database,
-        cell_pointers: Vec<(u32, u16)>,
+        cell_pointers: &[(u32, u16)],
     ) -> Result<Vec<TableInteriorCell>> {
-        cell_pointers
+        let cells: Vec<TableInteriorCell> = cell_pointers
             .iter()
             .map(|&offset| TableInteriorCell::read_cell(offset.0, offset.1, db))
-            .collect() // This will automatically collect into Result<Vec<TableInteriorCell>, Error>
+            .try_collect()?;
+
+        assert_eq!(cells.len(), cell_pointers.len());
+        Ok(cells.into_iter().sorted_by_key(|f| f.row_id).collect_vec()) //.into_iter())//.sorted_by_key(|f| f.row_id).collect_vec())
+
+        //
     }
 }
 

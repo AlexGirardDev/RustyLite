@@ -8,6 +8,7 @@ pub struct IndexInteriorPage {
     pub page_number: u32,
     pub header: PageHeader,
     pub value: CellValue,
+    pub right_cell: u32,
     // pub cell_pointers: Vec<(u32,u16)>,
     pub cells: Vec<IndexInteriorCell>,
 }
