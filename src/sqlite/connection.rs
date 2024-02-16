@@ -80,6 +80,7 @@ impl Connection {
                             count += 1;
                         }
                     }
+                    println!("{}",count);
                 }
             }
             return Ok(());
