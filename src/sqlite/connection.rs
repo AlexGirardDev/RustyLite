@@ -80,7 +80,6 @@ impl Connection {
                             count += 1;
                         }
                     }
-                    println!("{count}");
                 }
             }
             return Ok(());
@@ -150,7 +149,6 @@ impl Connection {
 
             let values: Vec<CellValue> =
                 columns.iter().map(|f| row.read_column(f)).try_collect()?;
-            println!("{}", row.record.page_number);
             println!("{}", values.iter().map(|f| f.to_string()).join("|"));
         }
         Ok(())
