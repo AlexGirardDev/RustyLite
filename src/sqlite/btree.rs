@@ -140,6 +140,7 @@ impl TableNode {
 
 impl TableBTree {
     pub fn new(db: &Database, schema: Rc<SqliteSchema>) -> Result<Self> {
+
         let SqliteSchema::Table(t_schema) = schema.as_ref() else {
             bail!("expected table schema but got index");
         };

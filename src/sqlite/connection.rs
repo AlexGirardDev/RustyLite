@@ -103,6 +103,7 @@ impl Connection {
             Some(exp) => exp.get_columns(),
             None => vec![],
         };
+
         if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
             eprintln!("index search");
             if where_columns.len() != 1 {
@@ -118,8 +119,10 @@ impl Connection {
                 }
                 _ => bail!("invalide indxed where clause"),
             };
+
             let index_tree = self.get_index_tree(&source_name, column_name)?;
             let tree = self.get_tree(&source_name)?;
+
             for row_id in index_tree.get_row_ids(&self.db, value)? {
                 let row = tree.get_row(&self.db, row_id);
                 let row = row?;
@@ -301,7 +304,9 @@ impl Connection {
         table_name: impl AsRef<str>,
         column_name: impl AsRef<str>,
     ) -> Result<IndexBTree> {
+
         let schema = &self.db.get_index_schema(table_name, column_name)?;
+
         let wow = IndexBTree::new(&self.db, schema.clone())?;
         Ok(wow)
     }
