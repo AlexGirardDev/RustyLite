@@ -62,14 +62,14 @@ impl TableNode {
                 //     &self.page.get_row_id(),
                 //     row_id
                 // );
-                // eprintln!(
-                //     "{}",
-                //     row_ids
-                //         .iter()
-                //         .map(|f| f.to_string())
-                //         .collect_vec()
-                //         .join("|")
-                // );
+                eprintln!(
+                    "{}",
+                    row_ids
+                        .iter()
+                        .map(|f| f.to_string())
+                        .collect_vec()
+                        .join("|")
+                );
                 // eprintln!(
                 //     "{}",
                 //     self.children()
@@ -83,7 +83,7 @@ impl TableNode {
                 // eprintln!(
                 //     "INT GOING INto:{} looking for:{}",
                 //     &self.page.get_row_id(),
-                //     row_id
+                //     row_i
                 // );
                 // eprintln!(
                 //     "{}",
