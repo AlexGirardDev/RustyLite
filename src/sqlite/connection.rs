@@ -80,7 +80,7 @@ impl Connection {
                             count += 1;
                         }
                     }
-                    println!("{}",count);
+                    println!("{}", count);
                 }
             }
             return Ok(());
@@ -120,11 +120,16 @@ impl Connection {
                 _ => bail!("invalide indxed where clause"),
             };
 
+            eprintln!("getting index");
             let index_tree = self.get_index_tree(&source_name, column_name)?;
             let tree = self.get_tree(&source_name)?;
 
-            for row_id in index_tree.get_row_ids(&self.db, value)? {
+            eprintln!("getting index");
+            let row_ids = index_tree.get_row_ids(&self.db, value)?;
+            eprintln!("found {} rows", row_ids.len());
+            for row_id in row_ids {
                 let row = tree.get_row(&self.db, row_id);
+                eprintln!("getting {} ", row_id);
                 let row = row?;
 
                 let values: Vec<CellValue> =
@@ -304,7 +309,6 @@ impl Connection {
         table_name: impl AsRef<str>,
         column_name: impl AsRef<str>,
     ) -> Result<IndexBTree> {
-
         let schema = &self.db.get_index_schema(table_name, column_name)?;
 
         let wow = IndexBTree::new(&self.db, schema.clone())?;
@@ -332,7 +336,7 @@ impl Connection {
             crate::sqlite::page::TablePage::Leaf(leaf) => {
                 for (page_number, offset) in &leaf.cell_pointers {
                     let record = self.db.read_record(*page_number, *offset).unwrap();
-                    println!("{:?}",record);
+                    println!("{:?}", record);
                 }
             }
             crate::sqlite::page::TablePage::Interior(int) => {}
