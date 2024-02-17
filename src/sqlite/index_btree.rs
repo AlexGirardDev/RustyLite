@@ -67,6 +67,9 @@ if &cell == value { Some(row_id) } else { None }
         int: &IndexInteriorPage,
         value: &CellValue,
     ) -> Result<Vec<i64>> {
+        if value< &int.cells.first().unwrap().value || value > &int.cells.last().unwrap().value{
+            return Ok(vec![]);
+        }
         let start_index = &int
             .cells
             .iter()
