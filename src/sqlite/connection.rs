@@ -120,11 +120,11 @@ impl Connection {
                 _ => bail!("invalide indxed where clause"),
             };
 
-            eprintln!("getting index");
+            eprintln!("getting index tree");
             let index_tree = self.get_index_tree(&source_name, column_name)?;
+            eprintln!("getting table tree");
             let tree = self.get_tree(&source_name)?;
-
-            eprintln!("getting index");
+            eprintln!("searching index for row ids");
             let row_ids = index_tree.get_row_ids(&self.db, value)?;
             eprintln!("found {} rows", row_ids.len());
             for row_id in row_ids {
