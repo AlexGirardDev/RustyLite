@@ -264,7 +264,7 @@ impl Database {
             }
             PageType::TableInterior => {
                 let mut cells = TableInteriorPage::read_cells(self, &cell_pointers)?;
-                let row_id=cells.last().unwrap().row_id;
+                let row_id = cells.last().unwrap().row_id;
 
                 // let page = self.read_table_page(right_cell, None)?;
                 // let right_row_id = match &page {
@@ -273,14 +273,14 @@ impl Database {
                 // };
 
                 cells.push(TableInteriorCell {
-                    row_id: 0,
+                    row_id: row_id*2,
                     left_child_page_number: right_cell,
                 });
 
                 Page::Table(TablePage::Interior(TableInteriorPage {
                     header,
                     page_number,
-                    row_id: row_id,
+                    row_id: row_id*2,
                     cells,
                     right_cell,
                 }))
