@@ -48,20 +48,17 @@ impl IndexNode {
         leaf: &IndexLeafPage,
         value: &CellValue,
     ) -> Result<Vec<i64>> {
-        leaf.cell_pointers
+        Ok(leaf.cell_pointers
             .iter()
-            .map(|(page_number, pointer)| {
-                let record = db.read_index_record(*page_number, *pointer)?;
-                let row_id = db.read_record_cell(&record, 1)?;
-                let CellValue::Int(row_id) = row_id else { bail!("row_id must be an int {}",row_id); };
-                let cell = db.read_record_cell(&record, 0)?;
-                // println!("{}",cell);
-                Ok((cell, row_id))
+            .filter_map(|(page_number, pointer)| {
+                let record = db.read_index_record(*page_number, *pointer).unwrap();
+                let row_id = db.read_record_cell(&record, 1).unwrap();
+                let CellValue::Int(row_id) = row_id else { panic!("row_id must be an int {}",row_id); };
+                let cell = db.read_record_cell(&record, 0).unwrap();
+if &cell == value { Some(row_id) } else { None } 
 
             })
-            .filter_map_ok(|(cell_value, row_id)|
-                { if &cell_value == value { Some(row_id) } else { None } }
-            ).try_collect()
+            .collect_vec())
     }
 
     pub fn handle_interior_page(
