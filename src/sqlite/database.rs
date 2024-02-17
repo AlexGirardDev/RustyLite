@@ -273,14 +273,14 @@ impl Database {
                 // };
 
                 cells.push(TableInteriorCell {
-                    row_id: row_id*2,
+                    row_id: 0,
                     left_child_page_number: right_cell,
                 });
 
                 Page::Table(TablePage::Interior(TableInteriorPage {
                     header,
                     page_number,
-                    row_id: row_id*2,
+                    row_id: row_id,
                     cells,
                     right_cell,
                 }))
