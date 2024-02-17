@@ -57,11 +57,11 @@ impl TableNode {
                     }
                 }
 
-                // eprintln!(
-                //     "LEAF GOING INto:{} looking for:{}",
-                //     &self.page.get_row_id(),
-                //     row_id
-                // );
+                eprintln!(
+                    "LEAF GOING INto:{} looking for:{}",
+                    &self.page.get_row_id(),
+                    row_id
+                );
                 eprintln!(
                     "{}",
                     row_ids
@@ -70,33 +70,33 @@ impl TableNode {
                         .collect_vec()
                         .join("|")
                 );
-                // eprintln!(
-                //     "{}",
-                //     self.children()
-                //         .iter()
-                //         .map(|f| f.page.page_number().to_string())
-                //         .collect_vec()
-                //         .join("|")
-                // );
+                eprintln!(
+                    "{}",
+                    self.children()
+                        .iter()
+                        .map(|f| f.page.page_number().to_string())
+                        .collect_vec()
+                        .join("|")
+                );
             }
             TablePage::Interior(i) => {
-                // eprintln!(
-                //     "INT GOING INto:{} looking for:{}",
-                //     &self.page.get_row_id(),
-                //     row_i
-                // );
-                // eprintln!(
-                //     "{}",
-                //     self.children
-                //         .iter()
-                //         .map(|f| f.page.get_row_id().to_string())
-                //         .collect_vec()
-                //         .join("|")
-                // );
+                eprintln!(
+                    "INT GOING INto:{} looking for:{}",
+                    &self.page.get_row_id(),
+                    row_id
+                );
+                eprintln!(
+                    "{}",
+                    self.children
+                        .iter()
+                        .map(|f| f.page.get_row_id().to_string())
+                        .collect_vec()
+                        .join("|")
+                );
                 let wow = self
                     .children
                     .iter()
-                    .find_or_last(|p| row_id <= p.page.get_row_id());
+                    .find(|p| row_id <= p.page.get_row_id());
                 // .tuple_windows()
                 // .find_map(|(first_table, second_table)| {
                 //     let first = first_table.page.get_row_id();
