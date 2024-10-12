@@ -39,20 +39,6 @@ impl TablePage {
     
 }
 
-
-
-// #[derive(Debug)]
-// pub struct Page2 {
-//     pub page_number: u32,
-//     pub header: PageHeader,
-//     pub cell_pointers: Vec<u16>,
-//     pub table_page: TablePage<'a>,
-// }
-
-//     Leaf(TableLeafPage),
-//     Interior(TableInteriorPage),
-// }
-
 #[derive(Debug, Clone)]
 pub enum IndexPage {
     Leaf(IndexLeafPage),

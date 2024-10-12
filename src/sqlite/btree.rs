@@ -1,6 +1,5 @@
-// use std::{rc::Rc};
 
-use std::{borrow::Cow, fs::File, rc::Rc, vec};
+use std::{borrow::Cow, rc::Rc, vec};
 
 use super::{
     database::Database,
@@ -9,8 +8,7 @@ use super::{
     schema::SqliteSchema,
 };
 use anyhow::{anyhow, bail, Ok, Result};
-use itertools::Itertools;
-use ptree::{print_tree_with, write_tree_with, PrintConfig, Style, TreeItem};
+use ptree::{print_tree_with,  PrintConfig, Style, TreeItem};
 
 #[derive(Debug)]
 pub struct TableBTree {
@@ -39,7 +37,6 @@ impl TableNode {
             },
             TablePage::Interior(i) => {
                 let children = TableBTree::get_child_pages(db, i)?;
-                assert_eq!(children.len(), i.cells.len());
                 TableNode { page, children }
             }
         })
@@ -50,97 +47,27 @@ impl TableNode {
                 let mut row_ids = Vec::<i64>::new();
                 for (page_number, pointer) in leaf.cell_pointers.iter() {
                     let record = db.read_record(*page_number, *pointer)?;
-                    // dbg!(record.row_id);
                     row_ids.push(record.row_id);
                     if record.row_id == row_id {
                         return Ok(record);
                     }
                 }
-
-                eprintln!(
-                    "LEAF GOING INto:{} looking for:{}",
-                    &self.page.get_row_id(),
-                    row_id
-                );
-                eprintln!(
-                    "{}",
-                    row_ids
-                        .iter()
-                        .map(|f| f.to_string())
-                        .collect_vec()
-                        .join("|")
-                );
-                eprintln!(
-                    "{}",
-                    self.children()
-                        .iter()
-                        .map(|f| f.page.page_number().to_string())
-                        .collect_vec()
-                        .join("|")
-                );
+                bail!("could not find leaf");
             }
-            TablePage::Interior(i) => {
-                eprintln!(
-                    "INT GOING INto:{} looking for:{}",
-                    &self.page.get_row_id(),
-                    row_id
-                );
-                eprintln!(
-                    "{}",
-                    self.children
-                        .iter()
-                        .map(|f| f.page.get_row_id().to_string())
-                        .collect_vec()
-                        .join("|")
-                );
-                let wow = self
+            TablePage::Interior(_) => {
+                return self
                     .children
                     .iter()
-                    .find(|p| row_id <= p.page.get_row_id());
-                // .tuple_windows()
-                // .find_map(|(first_table, second_table)| {
-                //     let first = first_table.page.get_row_id();
-                //     let second = second_table.page.get_row_id();
-                //     if first == row_id {
-                //         dbg!("exact match!", first);
-                //         return Some(first_table);
-                //     }
-                //     if second == row_id {
-                //         dbg!("exact match!", second);
-                //         return Some(second_table);
-                //     }
-                //     if row_id < first && row_id < second {
-                //         println!("in range!{row_id} {first}-{second}");
-                //
-                //         Some(second_table)
-                //     } else {
-                //         None
-                //     }
-                // });
-
-                // dbg!(i.cells.iter().map(|f|f.row_id).collect_vec(), row_id);
-
-                return wow.unwrap().get_row(db, row_id);
-                // match wow{
-                //     Some(s) => return s.get_row(db, row_id),
-                //     None =>{
-                //         println!("{:?}",i.row_id );
-                //         let row_ids =
-                //         dbg!(wow.)
-                //     }
-                //
-                // };
-                //
+                    .find(|p| row_id <= p.page.get_row_id())
+                    .expect("this should exsist")
+                    .get_row(db, row_id)
             }
         }
-
-        todo!("{}", row_id);
     }
 }
 
 impl TableBTree {
     pub fn new(db: &Database, schema: Rc<SqliteSchema>) -> Result<Self> {
-
         let SqliteSchema::Table(t_schema) = schema.as_ref() else {
             bail!("expected table schema but got index");
         };
@@ -166,20 +93,6 @@ impl TableBTree {
     }
 
     pub fn get_row<'a>(&'a self, db: &'a Database, row_id: i64) -> Result<TableRow> {
-        // match &self.root_node.page{
-        //     TablePage::Leaf(_) => todo!(),
-        //     TablePage::Interior(i) => {
-        //         println!(
-        //             "{}",
-        //             i.cells
-        //                 .iter()
-        //                 .map(|f| f.row_id.to_string())
-        //                 .collect_vec()
-        //                 .join("|")
-        //         );
-        //     },
-        // };
-        // todo!();
         let record = self.root_node.get_row(db, row_id)?;
         Ok(TableRow::new(db, record, self.schema.clone()))
     }
@@ -193,9 +106,6 @@ impl TableBTree {
             branch: Style { ..Style::default() },
             ..PrintConfig::default()
         };
-        let file_name = format!("trees/{}.txt", self.schema.get_name());
-        let file = File::create(file_name)?;
-        write_tree_with(&self.root_node, &file, &config)?;
         print_tree_with(&self.root_node, &config)?;
         Ok(())
     }

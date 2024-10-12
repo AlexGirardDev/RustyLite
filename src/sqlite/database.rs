@@ -11,7 +11,6 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{Read, Seek, SeekFrom},
-    option,
     rc::Rc,
 };
 
@@ -58,23 +57,6 @@ impl Database {
         Ok(db)
     }
 
-    // pub fn read_entire_record(&self, pos: Position) -> Result<Record> {
-    //     self.seek_position(pos)?;
-    //     let payload_size = self.read_varint()?.value;
-    //     let row_id = self.read_varint()?.value;
-    //     let record_header = self.read_record_header(Position::Relative)?;
-    //     let mut values = Vec::<CellValue>::new();
-    //     for val in &record_header.headers {
-    //         values.push(self.read_record_cell(Position::Relative,val)?);
-    //     }
-    //     Ok(Record {
-    //         payload_size,
-    //         row_id,
-    //         values,
-    //         record_header,
-    //     })
-    // }
-
     fn read_record_header(&self, pos: Position) -> Result<RecordHeader> {
         self.seek_position(pos)?;
         let Varint { mut value, size } = self.read_varint()?;
@@ -117,8 +99,7 @@ impl Database {
     pub fn read_index_record(&self, page_number: u32, pointer: u16) -> Result<Record> {
         self.seek_position(Position::new(page_number, pointer))?;
         let payload_size = self.read_varint()?;
-        // let row_id = self.read_varint()?;
-        let cell_header_size = payload_size.size; //;+ row_id.size;
+        let cell_header_size = payload_size.size; 
         let record_header = self.read_record_header(Position::Relative)?;
         Ok(Record::new(
             0,
@@ -153,7 +134,7 @@ impl Database {
         }
 
         let page_start = match page_number {
-            1 => 0, //100?
+            1 => 0, 
             num => (num - 1) * self.header.page_size as u32,
         };
         Ok((page_start + offset as u32) as i64)
@@ -179,10 +160,6 @@ impl Database {
     ) -> Result<TableInteriorCell> {
         todo!()
     }
-    fn read_page(&self, page_number: u32) -> Result<Page> {
-        self.read_page_raw(page_number, None, None)
-    }
-
     fn read_page_raw(
         &self,
         page_number: u32,
@@ -217,7 +194,7 @@ impl Database {
         self.seek(page_number, offset + 1)?;
         let free_block = self.read_u16()?;
         self.seek(page_number, offset + 3)?;
-        let mut cell_count = self.read_u16()?;
+        let cell_count = self.read_u16()?;
         self.seek(page_number, offset + 5)?;
         let cell_content_area_offset = self.read_u16()?;
 
@@ -232,9 +209,6 @@ impl Database {
 
         let mut cell_array: Vec<u8> = vec![0; cell_count as usize * 2];
 
-        // if page_number != 1 {
-        //     self.seek(page_number, cell_content_area_offset)?;
-        // }
         self.read_exact(cell_array.as_mut_slice())?;
 
         let cell_pointers: Vec<(u32, u16)> = cell_array
@@ -266,12 +240,6 @@ impl Database {
                 let mut cells = TableInteriorPage::read_cells(self, &cell_pointers)?;
                 let row_id = cells.last().unwrap().row_id;
 
-                // let page = self.read_table_page(right_cell, None)?;
-                // let right_row_id = match &page {
-                //     TablePage::Leaf(l) => l.row_id,
-                //     TablePage::Interior(i) => i.cells.iter().last().unwrap().row_id,
-                // };
-
                 cells.push(TableInteriorCell {
                     row_id: 0,
                     left_child_page_number: right_cell,
@@ -280,7 +248,7 @@ impl Database {
                 Page::Table(TablePage::Interior(TableInteriorPage {
                     header,
                     page_number,
-                    row_id: row_id,
+                    row_id,
                     cells,
                     right_cell,
                 }))
@@ -406,24 +374,6 @@ impl Database {
         Ok(schema)
     }
 
-    // pub fn get_table_indices(&self, table_name: impl AsRef<str>) -> Result<Rc<SqliteSchema>> {
-    //     let schema = self
-    //         .schema
-    //         .iter()
-    //         .find(|f| match f.as_ref() {
-    //             SqliteSchema::Table(t) => t.name.as_ref() == table_name.as_ref(),
-    //             SqliteSchema::Index(_) => false,
-    //         })
-    //         .context(format!(indices
-    //             "clould not find table named {}",
-    //             table_name.as_ref()
-    //         ))?
-    //         .clone();
-    //
-    //     todo!()
-    // }
-    //
-
     pub fn get_schemas(&self) -> Vec<Rc<SqliteSchema>> {
         self.schema.clone()
     }
@@ -474,7 +424,7 @@ impl Database {
                             bail!("table sqchema sql can only have 1 expression");
                         }
                         let ast::Statement::CreateTable { columns, .. } =
-                            ast.get(0).expect("item is 1 item long")
+                            ast.first().expect("item is 1 item long")
                         else {
                             bail!("create table statement expected")
                         };
@@ -498,8 +448,6 @@ impl Database {
                         })
                     }
                     "index" => {
-                        // dbg!(&schema);
-                        //
                         let (_, parent_name, column_name) = name
                             .split('_')
                             .collect_tuple()

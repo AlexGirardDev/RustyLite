@@ -6,16 +6,12 @@ pub struct TableLeafPage {
     pub header: PageHeader,
     pub row_id: i64,
     pub cell_pointers: Vec<(u32, u16)>,
-    // pub cells: Vec<TableLeafCell>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TableLeafCell {
-    // pub row_id: i64,
     pub page_number: u32,
     pub offset: u16,
-    // pub payload_size: i64,
-    // pub record_header: RecordHeader,
 }
 
 impl Iterator for TableLeafCell {

@@ -1,4 +1,3 @@
-use std::collections::binary_heap::Iter;
 
 //Select count()
 use anyhow::{bail, Error, Ok, Result};
@@ -224,11 +223,3 @@ impl TryFrom<&BinaryOperator> for Operator {
         })
     }
 }
-// #[derive(Debug, Clone)]
-// pub enum CellValue {
-//     Null,
-//     Int(i64),
-//     Float(f64),
-//     Blob(Vec<u8>),
-//     String(String),
-// }

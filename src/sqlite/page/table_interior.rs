@@ -25,9 +25,8 @@ impl TableInteriorPage {
             .try_collect()?;
 
         assert_eq!(cells.len(), cell_pointers.len());
-        Ok(cells.into_iter().sorted_by_key(|f| f.row_id).collect_vec()) //.into_iter())//.sorted_by_key(|f| f.row_id).collect_vec())
+        Ok(cells.into_iter().sorted_by_key(|f| f.row_id).collect_vec()) 
 
-        //
     }
 }
 

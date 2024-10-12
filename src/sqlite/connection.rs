@@ -105,7 +105,6 @@ impl Connection {
         };
 
         if !where_columns.is_empty() && where_columns.iter().all(|f| indexes.contains(f)) {
-            eprintln!("index search");
             if where_columns.len() != 1 {
                 bail!("only single column index where clauses are supported");
             }
@@ -120,32 +119,17 @@ impl Connection {
                 _ => bail!("invalide indxed where clause"),
             };
 
-            eprintln!("getting index tree");
             let index_tree = self.get_index_tree(&source_name, column_name)?;
-            eprintln!("getting table tree");
             let tree = self.get_tree(&source_name)?;
-            eprintln!("searching index for row ids");
             let row_ids = index_tree.get_row_ids(&self.db, value)?;
-            eprintln!("found {} rows", row_ids.len());
             for row_id in row_ids {
                 let row = tree.get_row(&self.db, row_id);
-                eprintln!("getting {} ", row_id);
                 let row = row?;
 
                 let values: Vec<CellValue> =
                     columns.iter().map(|f| row.read_column(f)).try_collect()?;
                 println!("{}", values.iter().map(|f| f.to_string()).join("|"));
             }
-            // for row in tree.(&self.db) {
-            // let row = row?;
-            // if !Connection::evalute_clause(&row, &select.clause)? {
-            //     continue;
-            // }
-            //
-            // let values: Vec<CellValue> =
-            //     columns.iter().map(|f| row.read_column(f)).try_collect()?;
-            // println!("{}", values.iter().map(|f| f.to_string()).join("|"));
-            // }
             return Ok(());
         }
 
@@ -169,8 +153,7 @@ impl Connection {
                 Object::Bool(b) => Ok(b),
                 _ => bail!("bool expceted as result from where clause"),
             },
-            None => Ok(true),
-            _ => bail!("where clause must resolve to bool"),
+            None => Ok(true)
         }
     }
 
@@ -218,10 +201,6 @@ impl Connection {
     pub fn query(&self, sql: impl AsRef<str>) -> Result<()> {
         let mut ast = Parser::parse_sql(&DIALECT, sql.as_ref())?;
 
-        eprintln!("Query: {}", sql.as_ref());
-        eprintln!("ast: {:?}", ast);
-        eprintln!();
-
         let exp = match (ast.pop(), ast.pop()) {
             (Some(s), None) => s,
             _ => bail!("only a single expression is currently supported"),
@@ -250,7 +229,6 @@ impl Connection {
         };
 
         let tree = self.get_tree(&source_name)?;
-        // UnnamedExpr(Function(Function { name: ObjectName([Ident { value: "count", quote_style: None }]), args: [Unnamed(Wildcard)],
 
         let columns: Vec<String> = select
             .projection
@@ -339,7 +317,7 @@ impl Connection {
                     println!("{:?}", record);
                 }
             }
-            crate::sqlite::page::TablePage::Interior(int) => {}
+            crate::sqlite::page::TablePage::Interior(_) => {}
         }
         println!("{:?}", wow);
     }
@@ -350,8 +328,6 @@ type SqlRowClause = Box<dyn Fn(&TableRow) -> Result<bool>>;
 #[derive(Debug)]
 pub struct DatabaseHeader {
     pub page_size: u16,
-    // number_of_pages: u32,
-    // text_encoding: TextEncoding,
 }
 
 #[derive(Debug)]

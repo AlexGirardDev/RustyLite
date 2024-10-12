@@ -67,9 +67,6 @@ if &cell == value { Some(row_id) } else { None }
         int: &IndexInteriorPage,
         value: &CellValue,
     ) -> Result<Vec<i64>> {
-        if value< &int.cells.first().unwrap().value || value > &int.cells.last().unwrap().value{
-            return Ok(vec![]);
-        }
         let start_index = &int
             .cells
             .iter()
@@ -85,21 +82,16 @@ if &cell == value { Some(row_id) } else { None }
             return Ok(vec![]);
         }
 
-        let mut start = start_index.unwrap_or(0).saturating_sub(1);
-        let mut end = self
+        let start = start_index.unwrap_or(0).saturating_sub(1);
+        let end = self
             .children
             .len()
             .checked_sub(end_index.unwrap_or(0))
             .unwrap_or(self.children.len());
 
-        if end > 1{
-
-        }
-        // dbg!(start, end, self.children());
         if start > end {
             return Ok(vec![]);
         }
-        // start, end, value, self.children.len(), &int.cells;
         int.cells[start..end]
             .iter()
             .map(|f| f.value.clone())
@@ -152,7 +144,7 @@ impl IndexBTree {
             branch: Style { ..Style::default() },
             ..PrintConfig::default()
         };
-        let file_name = format!("trees/{}.txt", self.schema.get_name());
+        let file_name = format!("{}-tree.txt", self.schema.get_name());
         let file = File::create(file_name)?;
         write_tree_with(&self.root_node, &file, &config)?;
         print_tree_with(&self.root_node, &config)?;
@@ -160,55 +152,6 @@ impl IndexBTree {
     }
 }
 
-// pub struct IndexRowReader<'a> {
-//     db: &'a Database,
-//     iter: Box<dyn Iterator<Item = &'a (u32, u16)> + 'a>,
-//     key: CellValue
-// }
-//
-// impl<'a> IndexRowReader<'a> {
-//     pub fn new(tree: &'a IndexBTree, db: &'a Database, key:CellValue) -> Self {
-//         IndexRowReader {
-//             iter: tree.root_node.cells(),
-//             db,
-//             key
-//         }
-//     }
-// }
-//
-// impl<'a> Iterator for IndexRowReader<'a> {
-//     type Item = Result<IndexRow<'a>>;
-//
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let record = self
-//             .iter
-//             .next()
-//             .map(|(page_number, pointer)| self.db.read_index_record(*page_number, *pointer))?
-//             .unwrap();
-//         Some(Ok(IndexRow::new(self.db, record)))
-//     }
-// }
-//
-// pub struct IndexRow<'a> {
-//     record: Record,
-//     db: &'a Database,
-// }
-//
-// impl<'a> IndexRow<'a> {
-//     pub fn new(db: &'a Database, record: Record) -> Self {
-//         IndexRow { record, db }
-//     }
-//     pub fn get_row(&self) -> Result<(i64, CellValue)> {
-//         let key = self.db.read_record_cell(&self.record, 0)?;
-//         let row_id = self.db.read_record_cell(&self.record, 1)?;
-//
-//         let CellValue::Int(row_id) = row_id else {
-//             bail!("row_id must be an int {}",row_id);
-//         };
-//
-//         Ok((row_id, key))
-//     }
-// }
 
 impl TreeItem for IndexNode {
     type Child = Self;

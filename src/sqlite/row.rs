@@ -6,10 +6,3 @@ pub struct Row {
     pub columns: Rc<HashMap<String, usize>>,
     pub cells: Vec<CellValue>,
 }
-
-// impl Row{
-//     pub fn new(columns : Rc<HashMap<String,String>>,cells: impl Into<Vec<CellValue>>)-> Row{
-//         Row { columns, cells:cells.into()}
-//     }
-//
-// }

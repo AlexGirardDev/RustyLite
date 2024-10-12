@@ -9,7 +9,6 @@ pub struct IndexInteriorPage {
     pub header: PageHeader,
     pub value: CellValue,
     pub right_cell: u32,
-    // pub cell_pointers: Vec<(u32,u16)>,
     pub cells: Vec<IndexInteriorCell>,
 }
 
@@ -32,8 +31,6 @@ impl IndexInteriorCell {
         let left_child = db.read_u32()?;
         let record = db.read_index_record(page_number, offset + 4)?;
         let key = db.read_record_cell(&record, 0)?;
-        // db.read_raw_cell()?;//payload size
-        //
         Ok(IndexInteriorCell {
             left_child_page_number: left_child,
             value: key,
